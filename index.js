@@ -3313,20 +3313,63 @@ async function soCallModel(messages, opts = {}) {
 // 连接配置能直接带过来），代价是两者不能同时启用。原版先跑完会留下 #so-window / StoryOracleAPI；
 // 原版还没跑时，它的脚本标签也已经在页面上（酒馆按 /scripts/extensions/third-party/<目录>/ 加载）。
 // 末尾的 / 让它匹配不到 story-oracle-lite 自己。
-function originalOracleDetected() {
+// 自己这份脚本的路径（酒馆用 import() 按 ES 模块加载扩展）。启动守卫靠它把自己从脚本标签里排除——
+// 从 GitHub 按网址安装时，二创版的文件夹名就叫 story-oracle，和原版同名。
+const SO_SELF_PATH = (() => {
+    try { return decodeURIComponent(new URL(import.meta.url).pathname); } catch (e) { return ''; }
+})();
+// 二创版（不论装在哪个文件夹、装了几份）在模块求值的那一刻就登记自己的路径；先登记的那份是「主位」，
+// 其余在 init 里让路。不能靠脚本标签互认：酒馆会把同一批（loading_order 相同）扩展的脚本标签先一起挂上再并行求值，
+// 两份二创版都看得见对方的标签，就会双双退出（2.2.2 实测）。原版没有这套登记，靠它先建的 #so-window /
+// StoryOracleAPI 认出来——它的 loading_order 是 100，比我们早一批，正常情况下总是先跑完。
+const SO_FORKS = (() => {
     try {
-        return !!(document.getElementById('so-window') || window.StoryOracleAPI
-            || document.querySelector('script[src*="/third-party/story-oracle/"]'));
-    } catch (e) { return false; }
+        const list = Array.isArray(window.__storyOracleForks) ? window.__storyOracleForks : [];
+        window.__storyOracleForks = list;
+        if (SO_SELF_PATH && !list.includes(SO_SELF_PATH)) list.push(SO_SELF_PATH);
+        return list;
+    } catch (e) { return []; }
+})();
+const SO_ORIGINAL_WAIT_MS = 8000;
+// 另一个「故事神谕」在跑吗？'other' = 该让路；'none' = 放心启动；'wait' = 有个叫 story-oracle 的文件夹（原版的
+// 名字）挂了脚本、但它既没登记成二创版也还没建窗口——多半是原版还没跑到初始化，等它一会儿再判。
+// 只认文件夹名【正好是】story-oracle：社区的 story-oracle-next-beat 这类配套插件不该让我们白等。
+function otherOracleState() {
+    try {
+        if (document.getElementById('so-window') || window.StoryOracleAPI) return 'other';
+        if (SO_FORKS.length && SO_FORKS[0] !== SO_SELF_PATH) return 'other';
+        const pending = [...document.querySelectorAll('script[src*="/third-party/story-oracle/"]')].some((el) => {
+            try {
+                const p = decodeURIComponent(new URL(el.getAttribute('src'), location.href).pathname);
+                return /\/third-party\/story-oracle\/[^/]+$/.test(p) && p !== SO_SELF_PATH && !SO_FORKS.includes(p);
+            } catch (e) { return false; }
+        });
+        return pending ? 'wait' : 'none';
+    } catch (e) { return 'none'; }
 }
 
+// 启动：先确认没有别的「故事神谕」在跑（otherOracleState），再正式初始化（initNow）。
 function init() {
-    if (originalOracleDetected()) {
-        const msg = '检测到原版「故事神谕」也已启用。二创版与原版不能同时使用，请在扩展管理里停用其中一个后刷新页面。';
-        console.error('[故事神谕·二创版] ' + msg);
-        try { toastr.error(msg, '故事神谕·二创版', { timeOut: 0, extendedTimeOut: 0 }); } catch (e) { /* toastr 缺席 */ }
-        return;
-    }
+    const startedAt = Date.now();
+    const check = () => {
+        const st = otherOracleState();
+        if (st === 'wait' && Date.now() - startedAt < SO_ORIGINAL_WAIT_MS) { setTimeout(check, 200); return; }
+        if (st === 'other') {
+            const msg = '检测到另一个「故事神谕」（原版或另一份二创版）也已启用。两者不能同时使用，请在扩展管理里只留一个启用，然后刷新页面。';
+            console.error('[故事神谕·二创版] ' + msg);
+            try { toastr.error(msg, '故事神谕·二创版', { timeOut: 0, extendedTimeOut: 0 }); } catch (e) { /* toastr 缺席 */ }
+            return;
+        }
+        try {
+            initNow();
+        } catch (e) {
+            console.error('[Story Oracle] init failed:', e);
+        }
+    };
+    check();
+}
+
+function initNow() {
     const s = getSettings();
     // Tier 0 ④（1.25.0，Prince 定案）：一次性把老用户仍停在旧默认（-1 全部前文 / 世界书 / 概要 开）的手动校正键迁到
     // 精简默认，并告知一次。放在 buildWindow 之前 → UI 直接显示迁移后的值。仅翻【仍等于旧默认】的键（自定义值不动）。
