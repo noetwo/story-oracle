@@ -19055,10 +19055,11 @@ function buildWindow() {
                         <div class="so-hint so-fixm-warn">⚠ 部分模型（如 DeepSeek、Gemini）在高上下文下会认不准要改哪一条回复、把前文内容混进结果——下面几项默认关闭，仅在确有需要（对齐设定 / 前情）时再逐项开启。若确要带前文，更建议改用 ✂️ 选段校正：只把你划选的一段发给模型，高上下文下更稳，也绝不动没划到的部分。</div>
                         <label class="so-check so-lb-check"><span>只改此标签内的正文</span>&nbsp;<input id="so-fixm-scope" type="text" style="width:110px;" placeholder="留空 = 整条"></label>
                         <div class="so-hint">填正文所在的标签名（如 <code>Interleaving</code>，不用写尖括号）：模型只看到、只改这个标签里的正文，标签外的构建块、状态栏、占位符原样保留。留空，或这条回复里没有这个标签时，按整条回复处理。</div>
-                        <label class="so-check so-lb-check"><span>加载前文条数（-1 = 全部）</span>&nbsp;<input id="so-fixm-depth" type="number" min="-1" max="100" style="width:64px;"></label>
+                        <label class="so-check so-lb-check"><span>加载前文条数（0 = 不带，-1 = 全部）</span>&nbsp;<input id="so-fixm-depth" type="number" min="-1" max="100" style="width:64px;"></label>
                         <label class="so-check so-lb-check"><input id="so-fixm-card" type="checkbox"><span>带上角色卡（描述 / 性格 / 场景）</span></label>
                         <label class="so-check so-lb-check"><input id="so-fixm-world" type="checkbox"><span>带上当前激活世界书</span></label>
-                        <label class="so-check so-lb-check"><input id="so-fixm-summary" type="checkbox"><span>带上 📜剧情概要</span></label>
+                        <label class="so-check so-lb-check"><input id="so-fixm-summary" type="checkbox"><span>带上 📜剧情概要（含柏宝书 / 小白X 总结）</span></label>
+                        <div class="so-hint">柏宝书 / 小白X 的总结要先在「设置 → 上下文 → 记忆扩展」里打开才会带上；柏宝书只提供已经隐藏的旧楼层的摘要（和它注入主聊天的是同一份）。</div>
                         <!-- ✨ 思考块保护（W1 2026-08-16 §3.1 修复）。文案待 Prince 过目（行文案 + title 候选见 REPORT-FIXROUND） -->
                         <label class="so-check so-lb-check"><input id="so-fixm-protectthink" type="checkbox"><span>保护思考区块（&lt;think&gt; 思维链等，校正时原样保留）</span></label>
                         <div class="so-hint">部分模型改整条回复时会顺手把卡片的思考区块整块删掉——开着时系统先把它收走、校正后原样接回（校正卡会注明）。想让校正连思考块一起改时再关。</div>
@@ -19110,7 +19111,8 @@ function buildWindow() {
                                 <label class="so-check so-lb-check"><input id="so-fix-ctx" type="checkbox"><span>带上前文上下文（最近若干条主聊天）</span></label>
                                 <label class="so-check so-lb-check" style="margin-left:18px;"><span>条数（-1=全部）</span>&nbsp;<input id="so-fix-ctx-depth" type="number" min="-1" max="100" style="width:64px;"></label>
                                 <label class="so-check so-lb-check"><input id="so-fix-world" type="checkbox"><span>带上激活世界书（蓝灯 + 本条命中的绿灯）</span></label>
-                                <label class="so-check so-lb-check"><input id="so-fixa-summary" type="checkbox"><span>带上 📜剧情概要</span></label>
+                                <label class="so-check so-lb-check"><input id="so-fixa-summary" type="checkbox"><span>带上 📜剧情概要（含柏宝书 / 小白X 总结）</span></label>
+                                <div class="so-hint">柏宝书 / 小白X 的总结要先在「设置 → 上下文 → 记忆扩展」里打开才会带上；柏宝书只提供已经隐藏的旧楼层的摘要（和它注入主聊天的是同一份）。</div>
                             </details>
                             <div class="so-fix-bundle-row">
                                 <select id="so-fix-bundle" title="已存的校正套餐（全局，跨聊天可用）"></select>
@@ -19177,7 +19179,7 @@ function buildWindow() {
                         <div id="so-bld-entry-list"></div>
                     </details>
                     <label class="so-check so-lb-check"><span>上下文深度</span>&nbsp;<input id="so-bld-depth" type="number" min="0" step="10" style="width:5em">&nbsp;<label class="so-check"><input id="so-bld-depth-all" type="checkbox"><span>全部</span></label></label>
-                    <label class="so-check so-lb-check"><input id="so-bld-summary" type="checkbox"><span>带上 📜剧情概要</span></label>
+                    <label class="so-check so-lb-check"><input id="so-bld-summary" type="checkbox"><span>带上 📜剧情概要（含柏宝书 / 小白X 总结）</span></label>
                     <label class="so-check so-lb-check"><input id="so-bld-stat" type="checkbox"><span>带上状态栏数据（stat_data）</span></label>
                     <label class="so-check so-lb-check"><input id="so-bld-scanwi" type="checkbox"><span>关键词触发世界书（把聊天与访谈里提到的设定条目作参考补充）</span></label>
                     <label class="so-check so-lb-check" title="锻造时把台词写得更丰满自然——每句都是当面说出口的完整人话，保留角色个性与说话习惯（话少的角色照旧话少，但开口的句子完整）。各家模型都验证过；不改条数与结构。"><input id="so-bld-dlgrich" type="checkbox"><span>台词丰满（锻造台词写成完整人话）</span></label>
@@ -19932,8 +19934,11 @@ function bindControls() {
     if (fixWaitMvuCb) fixWaitMvuCb.addEventListener('change', () => { getSettings().fixWaitForMvu = fixWaitMvuCb.checked; save(); });
     // 数字框条数 parse：非数字 / 非正数 → -1（全部），正数原样。手动 / 自动各一份独立存储。
     const depthParse = (v) => { const n = parseInt(v, 10); return (Number.isNaN(n) || n <= 0) ? -1 : n; };
+    // 手动：0 = 不带前文（默认值就是 0，resolveFixModeCfg 也按「显式 0 = 不带」读）。原版共用上面那个 parse，
+    // 手填 0 会被存成 -1 = 带上全部前文，与界面显示相反（二创版 2.1.1 修）。负数 / 清空仍 = -1（全部）。
+    const depthParseM = (v) => { const n = parseInt(v, 10); return (Number.isNaN(n) || n < 0) ? -1 : n; };
     // 手动模式控件（fixM_*）——上下文条数 / 卡 / 世界书 / 概要。
-    bindFix('#so-fixm-depth', 'fixM_contextDepth', depthParse);
+    bindFix('#so-fixm-depth', 'fixM_contextDepth', depthParseM);
     bindFix('#so-fixm-card', 'fixM_includeCard');
     bindFix('#so-fixm-world', 'fixM_includeWorld');
     bindFix('#so-fixm-summary', 'fixM_includeSummary');
