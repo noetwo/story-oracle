@@ -1,0 +1,2217 @@
+/* Story Oracle — refined styling that inherits SillyTavern's theme.
+ * Accent is derived from the active theme (quote color), so it blends with
+ * whatever skin is in use rather than imposing a fixed palette. */
+
+/* 用户功能请求：ST 聊天输入栏（#leftSendForm）里的神谕快捷按钮 🌙。尺寸 / 悬停沿用 ST 原生图标
+   （.interactable + fa-）；只着主题强调色以便一眼认出。它在 #so-window 之外，故直接用主题色而非 --so-accent。 */
+#so-chatbar-button { color: var(--SmartThemeQuoteColor, #8ab4f8); }
+
+#so-window {
+    --so-accent: var(--SmartThemeQuoteColor, #8ab4f8);
+    --so-radius: 14px;          /* 大圆角：窗口 / 叠层 */
+    --so-r-md: 12px;            /* 中圆角：聊天气泡 / 输入框 / 发送键统一同一圆角，消除 11/12/13 的细微抖动 */
+    --so-gap: 12px;
+
+    /* 1.45.0 窗口配色三档：这三个变量把原先硬编码的蒙层 / 输入框底 / 遮罩底参数化，
+       固定皮肤只需重新声明它们（见文件末尾 so-skin-* 块）。此处的取值 = 参数化之前的
+       字面量，故「跟随酒馆主题」档渲染逐值不变。
+       注意 --so-field 的兜底值来自酒馆 :root 的常量（rgba(0,0,0,.3)），不随主题变 ——
+       浅色皮肤下必须换掉，否则浅底卡片上是个深色输入框。 */
+    --so-ink: 255, 255, 255;                          /* hover / 淡填充蒙层基色；用法 rgba(var(--so-ink), α) */
+    --so-field: var(--black30a, rgba(0, 0, 0, 0.3));  /* 输入框 / 文本域底色 */
+    --so-scrim: rgba(8, 9, 12, 0.84);                 /* 覆盖卡遮罩底 */
+
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    min-width: min(320px, 96vw);   /* 超窄屏（折叠屏外屏/高缩放）：min-width 会压过 max-width，别把窗口撑出屏外——右缘住着 ✕ */
+    min-height: 340px;
+    max-width: 96vw;
+    max-height: 90vh;
+    overflow: hidden;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    font-size: calc(var(--mainFontSize, 15px) * 0.95);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
+    border-radius: var(--so-radius);
+    background:
+        radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--so-accent) 10%, transparent), transparent 60%),
+        var(--SmartThemeBlurTintColor, rgba(20, 20, 22, 0.94));
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength, 10px) + 4px));
+    box-shadow:
+        0 18px 50px -12px rgba(0, 0, 0, 0.6),
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* open animation (replayed via .so-opening in JS) */
+@keyframes so-open {
+    from { opacity: 0; transform: translateY(8px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+#so-window.so-opening {
+    animation: so-open 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 全屏阅读模式（1.51.0，用户功能请求·手机）：JS 把 #so-window 尺寸设为可见视口，这里只去掉悬浮窗的
+   圆角 / 尺寸上限 / 阴影，让它铺满到屏幕边缘（max-width/height:none 是必须的——否则 96vw/90vh 上限会
+   把 JS 设的满屏尺寸夹小）。几何全由 JS 掌管，故不需要 !important。皮肤 / 主题 / 各模式强调色照常生效。 */
+#so-window.so-fullscreen {
+    border-radius: 0;
+    max-width: none;
+    max-height: none;
+    box-shadow: none;
+    /* 悬浮态窗口(3000)在酒馆固定顶栏 #top-bar(3005) 之下——悬浮时窗口贴 top:70px 不重叠故无碍，但全屏铺到顶
+       就被顶栏盖住标题栏（⛶/✕ 够不着）。全屏抬到 20000：盖过顶栏 + 抽屉(10000) 等所有固定 chrome，真正覆盖
+       酒馆；仍低于酒馆弹窗 / 菜单(29999) 与 toast(≈999999)——中断提示条、确认框照常在最上层。 */
+    z-index: 20000;
+}
+#so-window.so-fullscreen #so-resize-grip { display: none; }   /* 全屏无从缩放 */
+#so-window.so-fullscreen #so-header { cursor: default; }       /* 全屏不可拖动 */
+
+/* ---------- header ---------- */
+#so-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: move;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--so-accent) 14%, transparent),
+        transparent);
+}
+
+#so-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;            /* shrink + ellipsis instead of pushing the buttons off-screen */
+    flex: 0 1 auto;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#so-title > .fa-moon {
+    color: var(--so-accent);
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--so-accent) 55%, transparent));
+}
+
+#so-mode-badge {
+    opacity: 0.55;
+    font-weight: 400;
+    font-size: 0.82em;
+}
+
+/* 装不下就换行、绝不裁掉 ✕：「工具移到标题栏」在手机上多塞 5 键，整排比窗口还宽时，尾部的 ✕ 会被
+   #so-window 的 overflow:hidden 裁出窗外＝关不掉窗口（kill 2026-07-23）。max-width 只在整排超出标题栏
+   时生效 → 装得下的布局（默认/桌面）逐像素不变；flex-end 让换行后的末行仍右对齐、✕ 留在右上角。
+   故意不用 flex:0 1 auto（可收缩会让默认手机布局在标题还有宽度时提早换行）。 */
+#so-header-btns { display: flex; align-items: center; justify-content: flex-end; gap: 2px; flex: 0 0 auto; flex-wrap: wrap; max-width: 100%; }
+/* 分组细线：把标题栏 8 个图标按用途分成 模式切换 | 工具 | 窗口 三组（纯装饰，aria-hidden）。 */
+.so-hdr-div {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 1px;
+    margin: 5px 3px;
+    background: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.22));
+}
+
+.so-iconbtn {
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    opacity: 0.7;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s, transform 0.1s;
+}
+.so-iconbtn:hover { opacity: 1; background-color: rgba(var(--so-ink), 0.09); }
+.so-iconbtn:active { transform: scale(0.92); }
+/* 键盘聚焦环：负 offset 让描边画在元素内侧，不会被 #so-window 的 overflow:hidden 裁掉。
+   :focus-visible 只在键盘聚焦时出现，鼠标点击不会留下边框。 */
+.so-iconbtn:focus-visible { outline: 2px solid var(--so-accent); outline-offset: -2px; opacity: 1; }
+#so-send:focus-visible { outline-color: #fff; }
+#so-clear-btn:hover { color: var(--crimson70a, #e08585); }
+.so-iconbtn.so-generating { color: var(--crimson70a, #e0685f); opacity: 1; }
+
+/* ---------- 标题栏「⋯」工具下拉（剧情概要 / 调试 / 设置 收进一处） ---------- */
+.so-tools-wrap { position: relative; flex: 0 0 auto; display: flex; align-items: center; }
+#so-tools-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 10;
+    min-width: 150px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: var(--so-r-md, 12px);
+    background: var(--SmartThemeBlurTintColor, rgba(26, 26, 28, 0.98));
+    box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    animation: so-open 0.16s ease;
+}
+#so-tools-menu.open { display: flex; }
+/* 菜单项：把 30×30 的方形图标块改成左对齐的「图标 + 文字」整行 */
+.so-tools-item {
+    width: auto;
+    height: auto;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+.so-tools-item > i { width: 16px; text-align: center; }
+/* 行变宽后，把「有概要」小红点改到整行右端竖直居中（默认 top/right:4px 会贴在右上角，显得脱离） */
+#so-tools-menu #so-summary-btn.so-has-summary::after { top: 50%; right: 9px; transform: translateY(-50%); }
+
+/* ---------- settings ---------- */
+#so-settings {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    max-height: 55%;
+    overflow-y: auto;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: rgba(0, 0, 0, 0.18);
+    animation: so-open 0.2s ease;
+}
+#so-settings.open { display: flex; }
+
+
+#so-settings .so-row,
+#so-settings .so-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85em;
+}
+#so-settings .so-field > span,
+#so-settings .so-row > span { opacity: 0.7; }
+
+#so-settings .so-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+#so-settings .so-check {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    opacity: 0.9;
+}
+#so-settings .so-check:hover { opacity: 1; }
+
+#so-settings input[type="text"],
+#so-settings input[type="search"],
+#so-settings input[type="password"],
+#so-settings input[type="number"],
+#so-settings select,
+#so-settings textarea {
+    width: 100%;
+    box-sizing: border-box;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+#so-settings input:focus,
+#so-settings select:focus,
+#so-settings textarea:focus {
+    outline: none;
+    border-color: var(--so-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--so-accent) 25%, transparent);
+}
+#so-settings textarea { resize: vertical; line-height: 1.4; }
+/* 1.45.0：.so-check 行里出现 <select> 是头一遭（「窗口配色」）。上面那条 width:100% 会把
+   select 的 flex 基准撑成整行宽，同一行的中日韩文标签就被挤到【逐字】换行 —— 390px 实测
+   「窗口配色」显示成「窗口配 / 色」（标签宽 40px、高 36px，单行才 15px）。只在 .so-check 内
+   改回自适应：标签占自然宽度，下拉吃掉剩下的。其余 .so-check 行是 checkbox + span，不受影响。 */
+#so-settings .so-check select { width: auto; flex: 1 1 auto; min-width: 0; }
+
+.so-profile-row { display: flex; gap: 6px; align-items: center; }
+.so-profile-row select { flex: 1 1 auto; }
+#so-profile-refresh {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+}
+
+.so-model-row { display: flex; gap: 6px; align-items: center; }
+.so-model-row input { flex: 1 1 auto; }
+#so-model-fetch {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+}
+#so-model-list { margin-top: 6px; }
+
+.so-iconbtn.so-busy { pointer-events: none; opacity: 0.6; }
+.so-iconbtn.so-busy > i { animation: so-spin 0.8s linear infinite; }
+@keyframes so-spin { to { transform: rotate(360deg); } }
+
+.so-hint-error { color: var(--crimson70a, #e07c7c); opacity: 0.95; }
+#so-sysprompt-which-hint { white-space: pre-line; }
+
+.so-hint { font-size: 0.78em; opacity: 0.55; line-height: 1.4; }
+
+/* ---------- messages ---------- */
+#so-messages {
+    flex: 1 1 0;
+    min-height: 0;           /* allow shrinking so the input/footer is never clipped */
+    overflow-y: auto;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--so-gap);
+    scroll-behavior: smooth;
+}
+
+@keyframes so-msg-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.so-msg {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    max-width: 100%;
+}
+/* 1.85.3：入场淡入只给直播新到的气泡（JS 在 addMessage 非批量时挂 .so-msg-new、放完即摘）。
+   挂在 .so-msg 本体上时，每次开窗 display:none→flex 都会让几百条历史一起重播。 */
+.so-msg.so-msg-new {
+    animation: so-msg-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.so-user { flex-direction: row-reverse; }
+
+.so-avatar {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.8em;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+}
+.so-assistant .so-avatar {
+    color: var(--so-accent);
+    background-color: rgba(var(--so-ink), 0.06);
+    background: radial-gradient(circle at 30% 30%,
+        color-mix(in srgb, var(--so-accent) 30%, transparent),
+        color-mix(in srgb, var(--so-accent) 8%, transparent));
+    box-shadow: 0 0 10px -2px color-mix(in srgb, var(--so-accent) 45%, transparent);
+}
+.so-user .so-avatar {
+    opacity: 0.75;
+    background: rgba(var(--so-ink), 0.06);
+}
+
+.so-bubble { min-width: 0; display: flex; flex-direction: column; gap: 3px; max-width: 84%; }
+
+.so-role {
+    font-size: 0.66em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.5;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.so-user .so-role { justify-content: flex-end; opacity: 1; }
+.so-user .so-role-label { opacity: 0.5; }
+
+.so-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+    padding: 9px 12px;
+    border-radius: var(--so-r-md);
+    border: 1px solid transparent;
+}
+.so-assistant .so-content {
+    background: var(--SmartThemeBotMesBlurTintColor, rgba(255, 255, 255, 0.05));
+    border-color: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.08));
+    border-top-left-radius: 4px;
+}
+.so-user .so-content {
+    background-color: var(--SmartThemeUserMesBlurTintColor, rgba(90, 120, 170, 0.28));
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--so-accent) 26%, transparent),
+        color-mix(in srgb, var(--so-accent) 16%, transparent));
+    border-color: color-mix(in srgb, var(--so-accent) 30%, transparent);
+    border-top-right-radius: 4px;
+}
+
+.so-content.so-streaming::after {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    border-radius: 2px;
+    background: var(--so-accent);
+    animation: so-blink 1s steps(2, start) infinite;
+}
+@keyframes so-blink { 50% { opacity: 0; } }
+
+.so-content.so-error { color: var(--crimson70a, #e07c7c); }
+
+/* Replies rendered as HTML (markdown / regex widgets) need normal flow, not the
+   pre-wrap used for plain text, or block elements get stray gaps. */
+.so-content.so-rendered { white-space: normal; }
+.so-content.so-rendered img { max-width: 100%; height: auto; }
+
+/* 参谋 Markdown 渲染时的 <StoryPlan> 原样块（1.18.2）：安静的等宽小块——方案正文在下方的采纳卡里
+   有结构化展示，这里只是让原始块保持可读、不被 Markdown 搅碎。 */
+.so-content .so-plan-raw {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--monoFontFamily, ui-monospace, monospace);
+    font-size: 11px;
+    line-height: 1.45;
+    opacity: 0.72;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.08));
+    border-radius: 6px;
+    padding: 6px 9px;
+    margin: 6px 0;
+}
+
+/* Markdown 表格（1.18.4）：showdown 现在开启 tables（此前恒 false = 表格显示成原始 |竖线| 文本）。
+   ST 自带的表格样式只作用于 .mes_text/.mes_reasoning，够不到神谕窗口的 .so-content，故这里自带一套：
+   主题描边 + 表头淡染（--so-accent）+ 斑马纹。表格自身 display:block + overflow-x:auto，宽表在窄窗口
+   （尤其手机）里横向滚动、绝不把气泡撑破。普通聊天关正则 + 参谋散文两条渲染路径共用（都落在 .so-content）。 */
+.so-content table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 6px 0;
+    font-size: 0.92em;
+}
+.so-content th,
+.so-content td {
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
+    padding: 4px 9px;
+    text-align: left;
+    vertical-align: top;
+}
+.so-content th {
+    background: color-mix(in srgb, var(--so-accent) 16%, transparent);
+    font-weight: 600;
+}
+.so-content tbody tr:nth-child(even) td {
+    background: rgba(var(--so-ink), 0.03);
+}
+
+#so-sysprompt:disabled { opacity: 0.45; cursor: not-allowed; }
+
+
+/* assistant message header: label on the left, quick-copy button on the right */
+.so-assistant .so-role {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    opacity: 1;
+}
+.so-assistant .so-role-label { opacity: 0.5; }
+
+.so-actions { display: flex; align-items: center; gap: 1px; flex: 0 0 auto; }
+/* A2：消息操作按钮（复制 / 重生 / 编辑 / 删除）默认渲染在气泡【底部】而非挤在角色行——
+   底部一行右对齐，桌面仍靠 .so-msg-btn 的 hover 显影。原生化自二创 actions-bottom（用户已在用）。 */
+/* 1.61.0 起 AI 气泡这行最多有 复制/重生/删除/导出/导入 五枚 + 插件注册的动作钮 —— 窄屏放不下时
+   换行而不是溢出（.so-msg-btn 本就 flex:0 0 auto，不换行会顶出气泡）。 */
+.so-bubble > .so-actions { justify-content: flex-end; margin-top: 5px; flex-wrap: wrap; }
+/* A6：连接预设 UI —— 下拉 + 加载 / 删除 / 保存图标钮成一行；下拉 / 名称输入撑满。 */
+
+.so-msg-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.4;
+    font-size: 12px;            /* fixed: independent of the tiny .so-role em */
+    line-height: 1;
+    padding: 6px 7px;           /* generous tap target for mobile */
+    border-radius: 7px;
+    text-transform: none;
+    flex: 0 0 auto;
+    transition: opacity 0.15s, background-color 0.15s, transform 0.1s, color 0.15s;
+}
+.so-msg:hover .so-msg-btn { opacity: 0.62; }
+.so-msg-btn:hover { opacity: 1 !important; background-color: rgba(var(--so-ink), 0.09); }
+.so-msg-btn:active { transform: scale(0.9); }
+.so-del-btn:hover { color: var(--crimson70a, #e07c7c); }
+.so-copy-btn.so-copied { color: var(--so-accent); opacity: 1 !important; }
+
+/* inline edit-in-place box on a user message */
+.so-edit-box { display: flex; flex-direction: column; gap: 6px; }
+.so-edit-ta {
+    width: 100%; box-sizing: border-box; resize: vertical;
+    font: inherit; line-height: 1.5; color: inherit;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.25));
+    border: 1px solid color-mix(in srgb, var(--so-accent) 40%, transparent);
+    border-radius: 10px; padding: 8px 10px;
+}
+.so-edit-ta:focus { outline: none; border-color: var(--so-accent); }
+.so-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.so-edit-save, .so-edit-cancel {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    font-size: 0.82em; padding: 5px 11px; border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    background: transparent; color: inherit; transition: background-color 0.15s, opacity 0.15s;
+}
+.so-edit-save { border-color: color-mix(in srgb, var(--so-accent) 55%, transparent); background: color-mix(in srgb, var(--so-accent) 18%, transparent); }
+.so-edit-save:hover { background: color-mix(in srgb, var(--so-accent) 30%, transparent); }
+.so-edit-cancel:hover { background: rgba(var(--so-ink), 0.08); }
+
+/* typing dots */
+.so-typing { display: inline-flex; gap: 4px; align-items: center; padding: 2px 0; }
+.so-typing i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--so-accent);
+    opacity: 0.5;
+    animation: so-bounce 1.2s infinite ease-in-out;
+}
+.so-typing i:nth-child(2) { animation-delay: 0.18s; }
+.so-typing i:nth-child(3) { animation-delay: 0.36s; }
+@keyframes so-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.so-note {
+    font-size: 0.82em;
+    opacity: 0.65;
+    text-align: center;
+    padding: 6px 12px;
+    line-height: 1.4;
+}
+
+/* empty state */
+.so-empty {
+    margin: auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px;
+    line-height: 1.4;
+}
+.so-empty-line { opacity: 0.7; }
+.so-empty-icon {
+    font-size: 2em;
+    color: var(--so-accent);
+    opacity: 0.5;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--so-accent) 40%, transparent));
+}
+.so-empty-sub { font-size: 0.82em; opacity: 0.55; }
+/* 示例问题 chip：点一下把问题填进输入框（见 renderEmptyState）。真正的 <button>，键盘可达。 */
+.so-empty-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; width: 100%; max-width: 280px; }
+.so-empty-chip {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    font-family: inherit; font-size: 0.82em; line-height: 1.4; text-align: left;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--so-accent) 38%, transparent);
+    background: color-mix(in srgb, var(--so-accent) 9%, transparent);
+    transition: background-color 0.15s, transform 0.1s;
+}
+.so-empty-chip:hover { background: color-mix(in srgb, var(--so-accent) 20%, transparent); }
+.so-empty-chip:active { transform: scale(0.97); }
+.so-empty-chip:focus-visible { outline: 2px solid var(--so-accent); outline-offset: 2px; }
+/* 📤 空态导入入口（1.61.0）：气泡行上那对导出/导入按钮在【空页】够不着 —— 空态补一枚。
+   同属 chip 家族，只是更低调（虚线 + 居中 + 与示例 chip 拉开距离），别喧宾夺主。 */
+.so-empty-io { margin-top: 14px; margin-inline: auto; }
+.so-empty-import-btn {
+    text-align: center;
+    border-style: dashed;
+    background: transparent;
+    opacity: 0.72;
+}
+.so-empty-import-btn:hover { opacity: 1; }
+.so-empty-import-btn > i { margin-right: 5px; }
+
+/* ---------- footer ---------- */
+#so-footer {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    align-items: flex-end;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: rgba(0, 0, 0, 0.12);
+}
+#so-input {
+    flex: 1 1 auto;
+    resize: none;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    border-radius: var(--so-r-md);
+    padding: 9px 12px;
+    font-family: inherit;
+    line-height: 1.4;
+    min-height: 46px;              /* #4 两行下限；高度由 JS autoGrowInput 控制，最多到窗口一半再内部滚动 */
+    overflow-y: auto;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+#so-input:focus {
+    outline: none;
+    border-color: var(--so-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--so-accent) 22%, transparent);
+}
+#so-send {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--so-r-md);
+    color: #fff;
+    background-color: var(--so-accent);
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-accent) 78%, black 6%));
+    box-shadow: 0 4px 12px -3px color-mix(in srgb, var(--so-accent) 60%, transparent);
+    opacity: 1;
+}
+#so-send:hover { filter: brightness(1.08); transform: translateY(-1px); }
+#so-send:active { transform: scale(0.94); }
+#so-send.so-generating {
+    background: var(--crimson70a, #c0564f);
+    box-shadow: 0 4px 12px -3px rgba(200, 80, 70, 0.5);
+}
+
+/* ---------- scrollbars ---------- */
+#so-messages::-webkit-scrollbar,
+#so-settings::-webkit-scrollbar,
+#so-input::-webkit-scrollbar { width: 8px; }
+#so-messages::-webkit-scrollbar-thumb,
+#so-settings::-webkit-scrollbar-thumb,
+#so-input::-webkit-scrollbar-thumb {
+    background: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+#so-messages::-webkit-scrollbar-thumb:hover,
+#so-settings::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--so-accent) 50%, transparent);
+    background-clip: padding-box;
+}
+#so-messages, #so-settings, #so-input {
+    scrollbar-width: thin;
+    scrollbar-color: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18)) transparent;
+}
+
+/* draggable resize grip (bottom-right) — works with mouse and touch */
+#so-resize-grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 22px;
+    height: 22px;
+    z-index: 6;
+    cursor: nwse-resize;
+    touch-action: none;
+    border-bottom-right-radius: var(--so-radius);
+    opacity: 0.4;
+    transition: opacity 0.15s;
+    background:
+        linear-gradient(135deg, transparent 50%, var(--SmartThemeBodyColor, #ccc) 50%, var(--SmartThemeBodyColor, #ccc) 58%, transparent 58%),
+        linear-gradient(135deg, transparent 68%, var(--SmartThemeBodyColor, #ccc) 68%, var(--SmartThemeBodyColor, #ccc) 76%, transparent 76%),
+        linear-gradient(135deg, transparent 86%, var(--SmartThemeBodyColor, #ccc) 86%, var(--SmartThemeBodyColor, #ccc) 94%, transparent 94%);
+}
+#so-resize-grip:hover { opacity: 0.8; }
+
+/* 手机专属：魔棒菜单里的「窗口归位」救援项——桌面隐藏，下面的 @media 在手机显示（救援拖丢的窗口，见 index.js recenterWindow）。 */
+#so-wand-recenter { display: none; }
+
+@media (max-width: 600px) {
+    #so-window { max-height: 85vh; }
+    #so-wand-recenter { display: flex; }   /* 手机：显示「窗口归位」救援项 */
+    /* bigger grab target on touch screens */
+    #so-resize-grip { width: 32px; height: 32px; opacity: 0.6; }
+    #so-header { touch-action: none; }
+    /* 触摸目标：叠层 / 设置里的图标按钮放大到接近 44px；发送键 44px。挤在一行的 8 个标题栏按钮
+       只能小幅放大（手机上仍要排得下），主要靠加大间距防误触。消息操作按钮也加大点击区。 */
+    .so-iconbtn { width: 40px; height: 40px; }
+    #so-header-btns .so-iconbtn { width: 33px; height: 33px; }
+    /* 但「⋯」下拉里的菜单项也是 #so-header-btns 内的 .so-iconbtn 后代，会被上面那条 33px 规则连带
+       压成小方块（文字溢出框外、只剩图标可点 —— 用户反馈「⋯ 难按」的真正原因）。这里用同等特异性
+       （#id + .class）、排在其后的规则把它们拉回「图标 + 文字」整行，并把行高撑到 44px 触摸目标。 */
+    #so-header-btns .so-tools-item { width: auto; height: auto; min-height: 44px; padding: 8px 12px; }
+    #so-header-btns { gap: 3px; }
+    .so-hdr-div { margin: 6px 2px; }
+    #so-send { width: 44px; height: 44px; }
+    .so-msg-btn { padding: 9px 11px; }
+    .so-actions { gap: 4px; }
+    /* 各模式配置栏：手机上最多占半屏（内部滚动），条目列表也压低，避免盖住聊天区。
+       参谋栏此前漏在名单外——#so-messages 是 flex:1 1 0（basis 0 = 负剩余空间时收缩权重 0），
+       配置栏比可用高度还高时被压没的是聊天区。
+       ⚠ 工坊栏【故意不加】：#so-bld-bar 自带 max-height:50%（本文件靠后、源序更高会盖掉这里的
+       50vh），且 50% 窗高 < 50vh，本就更紧——写进来只会是一条无效声明。 */
+    #so-adv-bar { max-height: 50vh; overflow-y: auto; }
+    .so-lb-entries-list { max-height: 120px; }
+}
+
+/* ---------- diagnose mode ---------- */
+/* 诊断模式的「淡红」色调：作为当前模式时是一抹淡红（16% 底纹），自动诊断再升到实心强红。
+   与 advisor / lorebook 同法，用主题强调色调温以融入用户主题。 */
+#so-window { --so-diag-accent: color-mix(in srgb, var(--so-accent) 45%, #d9534f 55%); }
+
+/* ---------- reply-fix mode (校正) ---------- */
+/* 校正模式的「淡金」色调：作为当前模式时是一抹淡金（16% 底纹），与「自动校正」指示灯同一支金
+   （#e3b341）——active 淡、auto 亮，同属一个金色系；同样用主题强调色调温以融入主题。 */
+#so-window { --so-fix-accent: color-mix(in srgb, var(--so-accent) 45%, #e3b341 55%); }
+
+/* ---------- lorebook mode ---------- */
+/* A warm "parchment" tint distinguishes lorebook mode from diagnose at a glance,
+ * while still blending with the theme accent. */
+#so-window { --so-lb-accent: color-mix(in srgb, var(--so-accent) 45%, #d8a657 55%); }
+.so-fix-run-btn { margin-top: 4px; padding: 7px 10px; cursor: pointer; border-radius: var(--so-r-md, 8px);
+    border: 1px solid var(--so-accent); background: color-mix(in srgb, var(--so-accent) 16%, transparent); color: inherit; }
+.so-fix-run-btn:hover { background: color-mix(in srgb, var(--so-accent) 26%, transparent); }
+
+/* 模式工具栏折叠：诊断 / 世界书的配置栏整条可折叠成一行标题，给聊天区让出竖向空间（手机上尤其重要）。
+   复用设置分组的 <summary> ▸ 机制，染上当前模式的主题色（世界书=羊皮纸暖色；诊断里 --so-lb-accent 被改写为蓝）。 */
+.so-mode-collapse { width: 100%; }
+.so-mode-collapse > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 2px;
+    font-size: 0.82em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--so-lb-accent);
+    opacity: 0.92;
+    transition: opacity 0.15s;
+}
+.so-mode-collapse > summary::-webkit-details-marker { display: none; }
+.so-mode-collapse > summary::before {
+    content: '▸';   /* 展开时转 90° 朝下 */
+    display: inline-block;
+    font-size: 0.9em;
+    opacity: 0.7;
+    transition: transform 0.15s;
+}
+.so-mode-collapse[open] > summary::before { transform: rotate(90deg); }
+.so-mode-collapse > summary:hover { opacity: 1; }
+.so-mode-collapse > summary:focus-visible { outline: 2px solid var(--so-lb-accent); outline-offset: 2px; }
+.so-mode-collapse-body { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
+
+.so-lb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.so-lb-icon { color: var(--so-lb-accent); opacity: 0.85; flex: 0 0 auto; }
+.so-lb-bookpick { flex: 1 1 auto; min-width: 0; border: 1px solid var(--SmartThemeBorderColor, #444); border-radius: var(--so-r-md, 6px); padding: 2px 6px; }
+.so-lb-bookpick > summary { cursor: pointer; list-style: none; padding: 2px 0; font-size: 0.9em; }
+.so-lb-bookpick > summary::-webkit-details-marker { display: none; }
+.so-lb-bookpick-tools { display: flex; gap: 4px; margin: 4px 0; }
+.so-lb-book-list { max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.so-lb-book-opt { display: flex; align-items: center; gap: 6px; font-size: 0.9em; padding: 2px 4px; cursor: pointer; }
+.so-lb-book-opt:hover { background: rgba(var(--so-ink), 0.08); border-radius: 4px; }
+@media (max-width: 600px) { .so-lb-book-list { max-height: 120px; } }
+.so-lb-book-filter {
+    display: block; width: 100%; box-sizing: border-box;
+    font: inherit; font-size: 0.82em; color: inherit;
+    padding: 5px 9px; border-radius: 8px; margin: 2px 0;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+}
+.so-lb-book-filter:focus { outline: none; border-color: var(--so-lb-accent); }
+.so-lb-book-empty { font-size: 0.82em; opacity: 0.7; padding: 4px; }
+/* 🌐 世界书范围「自定义」（1.81.0）：主设置面板里的选书 / 选条目块。hidden 属性必须压过 flex，否则永远可见。 */
+#so-wi-custom { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+#so-wi-custom[hidden] { display: none; }
+.so-lb-check {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    font-size: 0.82em;
+    opacity: 0.8;
+}
+.so-lb-check:hover { opacity: 1; }
+.so-lb-check input { accent-color: var(--so-lb-accent); }
+
+/* per-entry picker (lorebook) — only shown for a single targeted book */
+.so-lb-entries { display: none; flex-direction: column; gap: 6px; }
+.so-lb-entries.shown { display: flex; }
+.so-lb-entries-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 体积读数（1.62.0）：过 10 万 token 标红。红字【绝不能】直接用裸 --crimson70a ——
+   那是酒馆 :root 的固定 rgba（不随主题变），压在亮皮上约 2.9:1。沿用 .so-smartsel-warn
+   立的写法把它往正文色里兑：--SmartThemeBodyColor 在 so-skin-light 档被重钉为 #1f2430，
+   跟随主题档则是酒馆自己的值，两档都成立。opacity 也要拉回 1 —— 汇总行自带 0.75。 */
+.so-lb-size-huge {
+    color: color-mix(in srgb, var(--crimson70a, #e07c7c) 78%, var(--SmartThemeBodyColor));
+    opacity: 1;
+}
+.so-lb-entries-tools { display: none; flex-wrap: wrap; align-items: center; gap: 4px; }
+.so-lb-mini {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.74em; padding: 3px 8px; border-radius: 7px; color: inherit;
+    border: 1px solid color-mix(in srgb, var(--so-lb-accent) 40%, transparent);
+    background: color-mix(in srgb, var(--so-lb-accent) 10%, transparent);
+    transition: background-color 0.15s;
+}
+.so-lb-mini:hover { background: color-mix(in srgb, var(--so-lb-accent) 22%, transparent); }
+/* 切换型 mini 按钮（如「👁 内容预览」）开启时的按下高亮——比 hover 更实，表示「正生效」。 */
+.so-lb-mini.active {
+    background: color-mix(in srgb, var(--so-lb-accent) 34%, transparent);
+    border-color: var(--so-lb-accent);
+}
+.so-lb-mini:disabled { opacity: 0.45; cursor: not-allowed; }
+.so-lb-mini:disabled:hover { background: color-mix(in srgb, var(--so-lb-accent) 10%, transparent); }
+.so-lb-mini-blue::before, .so-lb-mini-green::before, .so-lb-mini-off::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+}
+.so-lb-mini-blue::before { background: #5aa9e6; }
+.so-lb-mini-green::before { background: #7bbf6a; }
+.so-lb-mini-off::before { background: #777; opacity: 0.6; }
+.so-lb-ent-toggle .fa-chevron-down { transition: transform 0.15s; }
+.so-lb-entries.open .so-lb-ent-toggle .fa-chevron-down { transform: rotate(180deg); }
+.so-lb-entries-filter {
+    display: none; width: 100%; box-sizing: border-box;
+    font: inherit; font-size: 0.82em; color: inherit;
+    padding: 5px 9px; border-radius: 8px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+}
+.so-lb-entries-filter:focus { outline: none; border-color: var(--so-lb-accent); }
+.so-lb-entries-list { display: none; flex-direction: column; max-height: 168px; overflow-y: auto; gap: 1px; }
+.so-lb-entries.open .so-lb-entries-tools { display: flex; }
+.so-lb-entries.open .so-lb-entries-filter,
+.so-lb-entries.open .so-lb-entries-list { display: flex; }
+.so-lb-ent {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 7px; cursor: pointer;
+    font-size: 0.82em; padding: 3px 4px; border-radius: 6px;
+}
+.so-lb-ent:hover { background: rgba(var(--so-ink), 0.05); }
+.so-lb-ent input { accent-color: var(--so-lb-accent); flex: 0 0 auto; }
+.so-lb-ent-type { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: #888; }
+.so-lb-type-blue { background: #5aa9e6; }
+.so-lb-type-green { background: #7bbf6a; }
+.so-lb-type-off { background: #777; opacity: 0.5; }
+.so-lb-ent-uid { opacity: 0.5; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.so-lb-ent-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.so-lb-ent-empty { font-size: 0.8em; opacity: 0.55; padding: 4px 2px; }
+/* per-book header shown when editing "all active books" (grouped entry picker) */
+.so-lb-book-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.78em; font-weight: 600; opacity: 0.85;
+    padding: 6px 3px 3px; margin-top: 3px;
+    border-top: 1px solid rgba(var(--so-ink), 0.08);
+}
+.so-lb-book-head:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
+.so-lb-book-head .fa-book { opacity: 0.55; flex: 0 0 auto; color: var(--so-lb-accent); }
+.so-lb-book-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.so-lb-book-count {
+    flex: 0 0 auto; font-size: 0.92em; opacity: 0.7; font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--so-lb-accent) 18%, transparent);
+    border-radius: 9px; padding: 0 7px;
+}
+.so-lb-ent-empty-sub { padding-left: 16px; opacity: 0.45; }
+
+.so-apply-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+}
+
+.so-apply-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.86em;
+    background-color: var(--so-accent);
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-accent) 78%, black 6%));
+    box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--so-accent) 60%, transparent);
+    transition: filter 0.15s, transform 0.1s;
+}
+.so-apply-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.so-apply-btn:active:not(:disabled) { transform: scale(0.96); }
+.so-apply-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ---------- debug / last-prompt viewer ---------- */
+#so-debug {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    flex-direction: column;
+    border-radius: var(--so-radius);
+    background-color: var(--SmartThemeBlurTintColor, rgba(18, 18, 20, 0.985));
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength, 10px) + 6px));
+}
+#so-debug.open { display: flex; }
+
+#so-debug-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px 9px 12px;
+    font-weight: 600;
+    font-size: 0.9em;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 12%, transparent), transparent);
+}
+#so-debug-meta { opacity: 0.55; font-weight: 400; font-size: 0.82em; }
+
+#so-debug-body {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.78em;
+    line-height: 1.5;
+    color: var(--SmartThemeBodyColor, #ddd);
+    -webkit-user-select: text;
+    user-select: text;
+}
+#so-debug-body::-webkit-scrollbar { width: 8px; }
+#so-debug-body::-webkit-scrollbar-thumb {
+    background: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+/* ---------- preset curation modal ---------- */
+#so-curate {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+    background: var(--so-scrim);
+    backdrop-filter: blur(4px);
+}
+#so-curate.open { display: flex; }
+
+/* Solid, theme-independent panel so it's never see-through; bounded height with
+   an internally scrolling list so the footer stays on-screen. */
+#so-cur-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    border-radius: 12px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    background-color: #1b1d23;
+    color: #e6e6e6;   /* 1.27.1: 恒深色策展卡 → 钉死浅色文字（同 autowarn/fixwarn），浅色主题防深字压深底 */
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 9%, transparent), transparent 140px);
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+#so-cur-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 14%, transparent), transparent);
+}
+#so-cur-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+#so-cur-title > i { color: var(--so-accent); }
+#so-cur-sub {
+    flex: 0 0 auto;
+    padding: 10px 14px 4px;
+    font-size: 0.78em;
+    opacity: 0.62;
+    line-height: 1.5;
+}
+
+#so-cur-list {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px 8px 6px 6px;
+}
+
+.so-cur-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: default;
+    font-size: 0.85em;
+}
+.so-cur-row:hover { background: rgba(var(--so-ink), 0.05); }
+.so-cur-row.so-cur-off { opacity: 0.45; }
+.so-cur-row.so-cur-marker { background: color-mix(in srgb, var(--so-accent) 8%, transparent); }
+.so-cur-row.so-cur-drag { opacity: 0.5; }
+.so-cur-row.so-cur-over { border-color: var(--so-accent); box-shadow: 0 -2px 0 var(--so-accent) inset; }
+
+.so-cur-handle { cursor: grab; opacity: 0.4; flex: 0 0 auto; }
+.so-cur-handle:active { cursor: grabbing; }
+.so-cur-cb { flex: 0 0 auto; width: 15px; height: 15px; cursor: pointer; accent-color: var(--so-accent); }
+.so-cur-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.so-cur-role {
+    flex: 0 0 auto;
+    font-size: 0.82em;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(var(--so-ink), 0.1);
+    opacity: 0.85;
+}
+.so-cur-disabled {
+    flex: 0 0 auto;
+    font-size: 0.74em;
+    padding: 1px 6px;
+    border-radius: 6px;
+    white-space: nowrap;
+    background: rgba(224, 124, 124, 0.22);
+    color: #e89a9a;
+}
+.so-cur-tag {
+    flex: 0 0 auto;
+    font-size: 0.76em;
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: rgba(var(--so-ink), 0.08);
+    opacity: 0.9;
+    white-space: nowrap;
+}
+.so-cur-tag-marker { background: color-mix(in srgb, var(--so-accent) 24%, transparent); }
+.so-cur-tag-story { background: color-mix(in srgb, #6fcf97 26%, transparent); }
+.so-cur-tag-machinery,
+.so-cur-tag-wrapper { background: color-mix(in srgb, #b39ddb 24%, transparent); }
+.so-cur-tag-output,
+.so-cur-tag-prefill,
+.so-cur-tag-user-echo,
+.so-cur-tag-inert { background: rgba(var(--so-ink), 0.06); }
+.so-cur-tag-review { background: color-mix(in srgb, #f2c94c 26%, transparent); }
+.so-cur-chars { flex: 0 0 auto; font-size: 0.78em; opacity: 0.5; min-width: 48px; text-align: right; }
+
+#so-cur-foot {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+}
+#so-cur-count { flex: 1 1 auto; font-size: 0.8em; opacity: 0.75; }
+#so-cur-count b { opacity: 1; }
+#so-cur-foot-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+.so-cur-btn {
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    background: rgba(var(--so-ink), 0.04);
+    color: #e6e6e6;   /* 恒深色策展卡：钉死浅色文字，理由见 #so-cur-card */
+    font-family: inherit;
+    font-size: 0.82em;
+}
+.so-cur-btn:hover { background: rgba(var(--so-ink), 0.1); }
+.so-cur-btn:active { transform: scale(0.97); }
+.so-cur-btn.so-cur-save {
+    border-color: var(--so-accent);
+    background: color-mix(in srgb, var(--so-accent) 22%, transparent);
+}
+#so-sysprompt-preset-recurate { flex: 0 0 auto; width: 32px; height: 32px; }
+
+/* ---------- 附加参数弹窗（1.70.0，仿 #so-curate 骨架） ---------- */
+/* 恒深色卡 + 钉死浅色文字（同 #so-cur-card 的 1.27.1 定案：浅色主题防深字压深底）。 */
+#so-extraparams {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+    background: var(--so-scrim);
+    backdrop-filter: blur(4px);
+}
+#so-xp-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    border-radius: 12px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    background-color: #1b1d23;
+    color: #e6e6e6;
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 9%, transparent), transparent 140px);
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.7);
+}
+#so-xp-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 14%, transparent), transparent);
+}
+#so-xp-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+#so-xp-title > i { color: var(--so-accent); }
+/* 正文内部滚动、底钮恒在屏上（短视口手机不锁死 —— 同 #so-cur-card 的骨架法则）。 */
+#so-xp-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#so-xp-warn {
+    padding: 9px 11px;
+    border-radius: 8px;
+    font-size: 0.78em;
+    line-height: 1.55;
+    color: #f0d28a;
+    background: rgba(242, 201, 76, 0.12);
+    border: 1px solid rgba(242, 201, 76, 0.35);
+}
+.so-xp-field { display: flex; flex-direction: column; gap: 4px; }
+.so-xp-field > span { font-size: 0.82em; font-weight: 600; opacity: 0.9; }
+.so-xp-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    background: rgba(0, 0, 0, 0.3);
+    color: #e6e6e6;   /* 恒深色卡里的输入框：钉浅字，别吃主题正文色 */
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.8em;
+    line-height: 1.5;
+    padding: 7px 9px;
+}
+.so-xp-field textarea::placeholder { color: rgba(230, 230, 230, 0.35); }
+.so-xp-err:empty { display: none; }
+.so-xp-err { font-size: 0.75em; }
+.so-xp-err.so-hint-error { color: #f0a0a0; }
+#so-xp-foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 14px;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+}
+
+/* ---------- advisor mode (剧情参谋, experimental) ---------- */
+/* A cool teal tint distinguishes advisor mode from diagnose (theme accent) and
+ * lorebook (parchment gold) at a glance, while still blending with the theme. */
+#so-window { --so-adv-accent: color-mix(in srgb, var(--so-accent) 45%, #4fb0a5 55%); }
+
+#so-advisor-btn.so-adv-active {
+    color: var(--so-adv-accent);
+    background-color: color-mix(in srgb, var(--so-adv-accent) 16%, transparent);
+    opacity: 1;
+}
+
+#so-adv-pill {
+    display: none;
+    margin-left: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 0.6em;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    vertical-align: middle;
+    color: #fff;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-adv-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-adv-accent) 78%, black 6%));
+}
+#so-window.so-adv-on #so-adv-pill { display: inline-block; }
+
+#so-window.so-adv-on #so-header {
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--so-adv-accent) 22%, transparent),
+        transparent);
+}
+
+#so-adv-bar {
+    display: none;
+    /* 0 1 auto + min-height:0 + overflow-y:auto: a tall arc form (esp. blind, ~9 fields)
+       scrolls inside the bar instead of overflowing the window's clipped edge — the
+       window itself never scrolls, so without this the lower fields were unreachable. */
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: color-mix(in srgb, var(--so-adv-accent) 7%, transparent);
+}
+#so-window.so-adv-on #so-adv-bar { display: flex; }
+#so-window.so-settings-open #so-adv-bar { display: none; }
+
+.so-adv-check {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    font-size: 0.82em;
+    opacity: 0.8;
+}
+.so-adv-check:hover { opacity: 1; }
+.so-adv-preset-warn { line-height: 1.45; }
+
+/* ---------- active plan strip (visible in EVERY mode while a plan steers) ---------- */
+#so-plan-bar {
+    display: none;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--so-adv-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--so-adv-accent) 10%, transparent);
+}
+#so-window.so-plan-on #so-plan-bar { display: flex; }
+#so-window.so-settings-open #so-plan-bar { display: none; }
+
+/* 引导条默认收起以省纵向空间（用户反馈：停靠时挡聊天视图）：收起态只留标题行
+   （罗盘 + 引导中 + 目标 + 箭头），其余行（进度 / 强度 / 说明 / 弧线节奏 / 动作 / 注入内容）隐藏。
+   仅在【停靠窗口内】(#so-window > …) 生效——浮窗版有自己的折叠成小药丸机制，并隐藏其停靠箭头。 */
+#so-window > #so-plan-bar.so-plan-collapsed > :not(.so-plan-head) { display: none !important; }
+#so-window > #so-plan-bar.so-plan-collapsed #so-plan-goal {
+    flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.so-plan-collapse-btn {
+    margin-left: auto; flex: 0 0 auto; align-self: center;
+    background: none; border: none; cursor: pointer; padding: 2px 5px;
+    color: var(--so-adv-accent); opacity: 0.7; font-size: 0.82em; line-height: 1;
+    border-radius: 6px; transition: opacity 0.15s, background-color 0.15s;
+}
+.so-plan-collapse-btn:hover { opacity: 1; background: rgba(var(--so-ink), 0.08); }
+#so-plan-float #so-plan-bar .so-plan-collapse-btn { display: none; }
+
+.so-plan-head {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+    /* 1.74.1：hint 药丸（定宽单行）在场后，窄浮窗里定宽件可能装不下——换行而不是溢出窗外。
+       没有药丸时定宽件只有图标+标签，永远装得下 ⇒ 既有布局逐像素不变。 */
+    flex-wrap: wrap;
+}
+.so-plan-icon { color: var(--so-adv-accent); flex: 0 0 auto; align-self: center; }
+.so-plan-label {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 0.62em;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #fff;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-adv-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-adv-accent) 78%, black 6%));
+}
+#so-plan-goal {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.85em;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.so-plan-intensity { display: flex; gap: 4px; flex-wrap: wrap; }
+.so-plan-int {
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.78em;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    transition: filter 0.15s;
+}
+.so-plan-int:hover { filter: brightness(1.15); }
+.so-plan-int.active {
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-adv-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-adv-accent) 78%, black 6%));
+}
+
+.so-plan-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.so-plan-spacer { flex: 1 1 auto; }
+.so-plan-mini {
+    cursor: pointer;
+    padding: 3px 9px;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 0.76em;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+}
+.so-plan-mini:hover { filter: brightness(1.15); }
+.so-plan-done { border-color: color-mix(in srgb, var(--so-adv-accent) 60%, transparent); }
+.so-plan-drop { border-color: color-mix(in srgb, var(--crimson70a, #e07c7c) 60%, transparent); }
+
+#so-plan-directive {
+    display: none;
+    margin: 2px 0 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.74em;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px dashed var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    max-height: 180px;
+    overflow-y: auto;
+}
+#so-plan-directive.open { display: block; }
+
+/* ✏️ 注入内容编辑（1.48.0）。编辑框顶替 <pre> 的位置，配色与它同源（--so-field 底 +
+   主题正文色 + 主题描边），三档皮肤下自动跟随。 */
+#so-plan-editwrap { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+#so-plan-editbox {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    /* 与 #so-plan-directive 的 max-height 对齐：编辑器顶替预览的位置，不该比它能看见的字更少。 */
+    min-height: 180px;
+    font-family: inherit;
+    font-size: 0.85em;
+    line-height: 1.45;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+/* 节奏行被改掉时强度档置灰：连 hover 提亮一起撤掉，免得看着还能点。 */
+.so-plan-int:disabled { opacity: 0.45; cursor: default; }
+.so-plan-int:disabled:hover { filter: none; }
+/* 当前档那一颗（.active）不只是「点不动」，它还是【现在是哪一档】的唯一读数 —— 而它的字是压在
+   实心强调色上的【纯白】，整颗 45% 淡化等于把白字冲进底色里：1.48.0 眼检算得 浅色档 1.7:1、
+   深色档 2.0:1（另外两颗写的是主题正文色，45% 后 2.7:1 / 3.9:1，那是正常的置灰观感，保留）。
+   故这一颗改走「淡强调底 + 主题正文色」：分量仍明显轻于可点态，但档位读得出（浅 ~11:1 /
+   深 ~8:1）。跟随主题档同样受益 —— 正文色与窗口底本就是主题自己配好的一对。 */
+.so-plan-int.active:disabled {
+    opacity: 1;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background: color-mix(in srgb, var(--so-adv-accent) 28%, transparent);
+    border-color: color-mix(in srgb, var(--so-adv-accent) 45%, transparent);
+}
+
+/* ---- 序列引导（1.72.0）：拍列表 + 送回讨论钮。配色跟主题走（--so-field 底 + 主题正文/描边色，
+   与 .so-plan-mini / #so-plan-directive 同源），送回讨论钮本体直接复用 .so-plan-mini，
+   这里只管列表自己的排布。
+   高度上限取 min(40vh, 240px) 的保守值：条会被搬进 #so-plan-float，而浮窗【没有高度上限】
+   且 overflow:hidden —— 长序列按 40vh 能把浮窗顶出屏外。列表自带 overflow-y:auto，
+   两个家里都在自己内部滚。真机几何待眼检后再定死。 ---- */
+#so-seq-list { max-height: min(40vh, 240px); overflow-y: auto; margin-top: 4px; }
+.so-seq-row summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; }
+.so-seq-row-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-seq-row-done .so-seq-row-label, .so-seq-row-skipped .so-seq-row-label { opacity: 0.55; }
+.so-seq-row-active .so-seq-row-label { font-weight: 600; }
+.so-seq-row-btn {
+    flex: 0 0 auto;
+    cursor: pointer;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85em;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+}
+.so-seq-row-btn:hover { filter: brightness(1.15); }
+.so-seq-row-body { white-space: pre-wrap; opacity: 0.85; padding: 2px 0 4px 20px; font-size: 0.8em; line-height: 1.5; }
+/* 贯穿设定（精简版）：拍列表首行 + 序列卡上的编辑框。编辑框配色与 #so-plan-editbox 同源。 */
+.so-seq-canon > summary .so-seq-row-label { font-weight: 600; }
+.so-seq-canon-box {
+    width: 100%; box-sizing: border-box; resize: vertical; min-height: 5em; margin: 4px 0;
+    font-family: inherit; font-size: 0.85em; line-height: 1.45;
+    color: var(--SmartThemeBodyColor, #e6e6e6); background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18)); border-radius: 6px; padding: 6px 8px;
+}
+.so-seq-canon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.so-seq-canon-count { margin-left: auto; font-size: 0.75em; opacity: 0.6; }
+.so-seq-canon-count.over { color: var(--crimson70a, #e07c7c); opacity: 0.95; }
+.so-seq-card-canon .so-seq-canon-box { font-size: 0.82em; }
+
+/* ---------- plan adopt cards (under an advisor reply) ---------- */
+.so-plan-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+}
+.so-plan-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--so-adv-accent) 40%, transparent);
+    background: color-mix(in srgb, var(--so-adv-accent) 8%, transparent);
+}
+.so-plan-card.so-plan-adopted {
+    border-color: var(--so-adv-accent);
+    box-shadow: 0 0 0 1px var(--so-adv-accent) inset;
+}
+.so-plan-card .so-apply-btn {
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-adv-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-adv-accent) 78%, black 6%));
+    box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--so-adv-accent) 60%, transparent);
+}
+.so-plan-card-title { font-size: 0.9em; font-weight: 600; line-height: 1.4; }
+.so-plan-card-line { font-size: 0.82em; line-height: 1.5; overflow-wrap: anywhere; }
+.so-plan-card-dim { opacity: 0.72; }
+.so-plan-card-caption { line-height: 1.4; }
+.so-plan-card-actions { display: flex; margin-top: 2px; }
+
+/* ---- 序列提案卡（1.72.0）：骑 .so-plan-card 骨架，只加序列特有件（标题行 + 逐拍折叠行）。
+   字号跟单拍卡同一套（标题 .so-plan-card-title 0.9em / 行 .so-plan-card-line 0.82em，
+   展开体再按 .so-plan-card-dim 压暗），采用钮也不另立门户 —— 沿用 .so-plan-card-actions +
+   .so-apply-btn。行距全交给 .so-plan-card 的 gap:5px，这里不再自带 margin（会叠加）。 ---- */
+.so-seq-card-title { font-size: 0.9em; font-weight: 600; line-height: 1.4; }
+.so-seq-card-beat summary { cursor: pointer; font-size: 0.82em; line-height: 1.5; color: var(--SmartThemeBodyColor); }
+.so-seq-card-beatbody {
+    white-space: pre-wrap;
+    font-size: 0.82em;
+    line-height: 1.5;
+    opacity: 0.72;
+    padding: 2px 0 4px 16px;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- bridge chip (chat-mode discussion -> advisor plans) ---------- */
+.so-bridge { padding-top: 0; }
+.so-bridge-chip {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 13px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.95em;
+    color: #fff;
+    border: 1px solid transparent;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--so-adv-accent) 95%, white 5%),
+        color-mix(in srgb, var(--so-adv-accent) 78%, black 6%));
+    box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--so-adv-accent) 60%, transparent);
+    transition: filter 0.15s, transform 0.1s;
+}
+.so-bridge-chip:hover { filter: brightness(1.08); }
+.so-bridge-chip:active { transform: scale(0.96); }
+
+/* ---------- floating plan strip (window closed, plan still steering) ---------- */
+#so-plan-float {
+    /* the accent vars are scoped to #so-window — re-declare for the float */
+    --so-accent: var(--SmartThemeQuoteColor, #8ab4f8);
+    --so-adv-accent: color-mix(in srgb, var(--so-accent) 45%, #4fb0a5 55%);
+    /* 1.45.0 皮肤变量，取值同 #so-window */
+    --so-ink: 255, 255, 255;
+    --so-field: var(--black30a, rgba(0, 0, 0, 0.3));
+    --so-scrim: rgba(8, 9, 12, 0.84);
+
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    z-index: 2999;
+    display: none;
+    flex-direction: column;
+    width: min(420px, calc(100vw - 16px));
+    overflow: hidden;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    font-size: calc(var(--mainFontSize, 15px) * 0.95);
+    border: 1px solid color-mix(in srgb, var(--so-adv-accent) 50%, transparent);
+    border-radius: 12px;
+    background: var(--SmartThemeBlurTintColor, rgba(22, 24, 28, 0.96));
+    box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6),
+        0 0 0 1px color-mix(in srgb, var(--so-adv-accent) 12%, transparent) inset;
+}
+
+#so-plan-float-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    cursor: grab;
+    user-select: none;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--so-adv-accent) 20%, transparent),
+        transparent);
+}
+#so-plan-float-head:active { cursor: grabbing; }
+#so-plan-float-head .fa-compass { color: var(--so-adv-accent); }
+.so-plan-float-title { font-weight: 600; font-size: 0.88em; letter-spacing: 0.04em; }
+#so-plan-float-open {
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    opacity: 0.75;
+}
+#so-plan-float-open:hover { opacity: 1; background: rgba(var(--so-ink), 0.08); }
+
+/* the strip's in-window display rule is scoped to #so-window — float version */
+#so-plan-float #so-plan-bar { display: flex; border-bottom: none; }
+
+/* ---------- collapsed float: a single 🧭 compass button (no words) ---------- */
+#so-plan-float.so-collapsed {
+    width: auto;
+    border-radius: 999px;
+    /* 用户反馈（白鳥三津枝）：折叠的罗盘小药丸会挡住下面的正文。静息时做成半透明，尽量不遮字；
+       一旦交互——桌面悬停 / 手机触摸按住 / 拖动——立刻回满不透明，看清在抓什么。过渡很短，
+       prefers-reduced-motion 下被上面的减动效块统一压成瞬时（不影响半透明本身）。 */
+    opacity: 0.5;
+    transition: opacity 0.18s ease;
+}
+#so-plan-float.so-collapsed:hover,
+#so-plan-float.so-collapsed:active { opacity: 1; }
+#so-plan-float.so-collapsed #so-plan-float-slot { display: none; }
+#so-plan-float.so-collapsed #so-plan-float-head {
+    border-bottom: none;
+    border-radius: 999px;
+    padding: 3px;
+    gap: 0;
+}
+/* fold to the compass alone: hide the decorative compass, the words, the spacer and
+   the open(moon) button — the collapse toggle now carries the compass icon and is the
+   whole pill (tap it to expand; the oracle opens from the full head once expanded). */
+#so-plan-float.so-collapsed #so-plan-float-head > .fa-compass,
+#so-plan-float.so-collapsed .so-plan-float-title,
+#so-plan-float.so-collapsed .so-plan-spacer,
+#so-plan-float.so-collapsed #so-plan-float-open { display: none; }
+#so-plan-float.so-collapsed #so-plan-float-collapse {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    color: var(--so-adv-accent);
+    font-size: 1.15em;
+}
+/* 1.77.5：参谋设置组里的普通字段行（剧情引导注入深度）——与弧线表单同一套字段皮，同处一条参谋条。 */
+.so-adv-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.82em; }
+.so-adv-field > span { opacity: 0.72; }
+.so-adv-field input {
+    width: 100%;
+    box-sizing: border-box;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-family: inherit;
+}
+
+/* ============================================================== *
+ * 用户功能请求（自动诊断 / 持久侧聊 / 运行概要） —— 2026-06-14
+ * ============================================================== */
+#so-window { --so-auto-red: color-mix(in srgb, var(--crimson70a, #d9534f) 88%, #ff5b52 12%); }
+
+/* 自动诊断留在侧聊框里的修复记录（持久 note 气泡）：左对齐、可读、补丁可滚动。
+   即便诊断那一刻窗口是关着的，记录也留得下，重载后仍在（用户功能请求）。 */
+.so-note-record {
+    text-align: left;
+    opacity: 0.9;
+    font-size: 0.78em;
+    line-height: 1.45;
+    margin: 4px 10px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-radius: 6px;
+    border-left: 2px solid var(--so-auto-red, #d9534f);
+    background: color-mix(in srgb, var(--so-auto-red, #d9534f) 10%, transparent);
+}
+/* 文本部分单独滚动，撤销按钮始终在补丁下方可见（补丁很长时也不会被裹进滚动区盖掉） */
+.so-note-record-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow: auto;
+}
+
+/* 概要图标的「有内容」小红点 */
+#so-summary-btn { position: relative; }
+#so-summary-btn.so-has-summary::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--so-accent);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- 运行概要编辑器（叠层，仿 #so-debug） ---------- */
+#so-summary {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    flex-direction: column;
+    border-radius: var(--so-radius);
+    background-color: var(--SmartThemeBlurTintColor, rgba(18, 18, 20, 0.985));
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength, 10px) + 6px));
+}
+#so-summary.open { display: flex; }
+#so-summary-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px 9px 12px;
+    font-weight: 600;
+    font-size: 0.9em;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--so-accent) 12%, transparent), transparent);
+}
+#so-summary-sub {
+    flex: 0 0 auto;
+    padding: 10px 12px 6px;
+    font-size: 0.78em;
+    opacity: 0.62;
+    line-height: 1.5;
+}
+#so-summary-text {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0 12px;
+    padding: 10px;
+    resize: none;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    background-color: rgba(0, 0, 0, 0.22);
+    color: var(--SmartThemeBodyColor, #ddd);
+    font-family: inherit;
+    font-size: 0.86em;
+    line-height: 1.55;
+}
+#so-summary-foot {
+    flex: 0 0 auto;
+    padding: 6px 12px 12px;
+    font-size: 0.74em;
+    opacity: 0.7;
+    text-align: right;
+}
+
+/* ---------- 无障碍：尊重「减少动态效果」系统偏好 ---------- */
+/* 对动效敏感（晕动症等）的用户开启 prefers-reduced-motion 后，停用面板内所有动画 / 过渡。
+   用 .001ms 让动画直接跳到终态（而非 animation:none —— 那可能把元素停在首帧的 opacity:0）。
+   罗盘旋转等「正在生成」动效旁边本就有文字版的耗时进度行，停掉旋转不影响可用性。
+   浮动方案条 / 实时输出窗在 #so-window 之外，单独列出一并覆盖。 */
+@media (prefers-reduced-motion: reduce) {
+    #so-window, #so-window *, #so-plan-float, #so-plan-float * {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* 角色工坊模式（第 6 模式）配置栏 —— 校正块的拷贝，s/fix/bld/。本任务只搭空壳，内容由后续任务填充。 */
+#so-window { --so-bld-accent: color-mix(in srgb, var(--so-accent) 45%, #b07cc6 55%); }
+/* 草稿部分 chips 行：一排可点亮的部分标签（BUILDER_SECTIONS）。 */
+.so-stream-cue { font-size: 11px; opacity: .55; padding: 2px 8px 6px; text-align: center; }
+
+/* —— 自定义人格编辑器（1.39.0）——内联于设置面板滚动区（非覆盖卡，无需 #so-cur-card 骨架/逃生 ✕） */
+#so-persona-editor { border: 1px solid rgba(var(--so-ink), 0.12); border-radius: 8px; padding: 8px; margin: 6px 0; display: flex; flex-direction: column; gap: 6px; }
+.so-pe-field { display: flex; flex-direction: column; gap: 3px; }
+.so-pe-field > span { opacity: 0.85; font-size: 0.92em; }
+#so-persona-editor textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.so-pe-btns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.so-pe-btns button { min-height: 32px; }   /* 移动端点击目标（1.37.1 先例） */
+.so-pe-spacer { flex: 1 1 auto; }
+
+/* ---------- 窗口配色三档（1.45.0） ----------
+   用户上报：毛玻璃美化主题下神谕正文「看得字都糊了」。跟随酒馆主题是有意设计（见文件头
+   注释），但半透明底 + 高 blur 的主题会让主聊天渗上来。出路 = 两档【不跟随主题】的固定配色。
+
+   机制：<body> 上挂 so-skin-dark / so-skin-light（跟随主题 = 不挂），在三个 body 级根上
+   重新声明主题变量；既有规则本来就在读这些变量，故绝大部分界面自动改色。
+   特异度 body.so-skin-x #so-window (1,1,1) 压过 #so-window (1,0,0)，无需 !important。
+
+   深色一列全部逐字取自本文件原有的 var() 兜底值 —— 那就是这个扩展「没有任何主题」时
+   本来的样子，不是新设计。真正发明出来的只有浅色。
+   注意：#so-chatbar-button 与 ✂️ 快捷按钮住在酒馆自己的 UI 里，【有意】不在这三个根之下。 */
+body.so-skin-dark #so-window,
+body.so-skin-dark #so-plan-float {
+    --SmartThemeBodyColor: #e6e6e6;
+    --SmartThemeBlurTintColor: #16171a;
+    --SmartThemeBorderColor: rgba(255, 255, 255, 0.12);
+    --SmartThemeQuoteColor: #8ab4f8;
+    --SmartThemeBotMesBlurTintColor: rgba(255, 255, 255, 0.05);
+    --SmartThemeUserMesBlurTintColor: rgba(90, 120, 170, 0.28);
+    --SmartThemeBlurStrength: 0px;
+    /* 复选框对勾：酒馆把方框底画成 var(--SmartThemeBodyColor)（core style.css:4057，且 core
+       【没有】:checked 改底的规则），对勾则是 ::before 的 inset box-shadow 取
+       var(--SmartThemeCheckboxTickColor)（:4073）—— 而那个值是酒馆在 :root 上按【主题的】正文色
+       反推的（power-user.js applyThemeColor('main') 写 --SmartThemeCheckboxBgColorR/G/B，
+       :root 再算 (亮度-128)*-1000）。自定义属性在【声明处】就完成 var() 代换，所以在这里覆盖那
+       三个分量没有用，必须直接钉对勾色本身。
+       固定皮肤翻转了方框底却够不着对勾 → 深色主题的用户切到浅色档会得到「深方框 + 反推出来的
+       黑对勾」＝ 1.35:1，对勾等于看不见（浅色主题的用户切深色档则是镜像的另一半）。
+       两档的取值必须【互为反色】：深色档方框是浅的(#e6e6e6) → 对勾要深；浅色档方框是深的
+       (#1f2430) → 对勾要浅。深色档这一行在原生酒馆上恰好与继承来的值同向、看着像多余的，
+       但那只是巧合（取决于用户主题），所以照样钉死。 */
+    --SmartThemeCheckboxTickColor: #1f2430;
+    --so-ink: 255, 255, 255;
+    --so-field: rgba(0, 0, 0, 0.32);
+    --so-scrim: rgba(8, 9, 12, 0.84);
+}
+
+body.so-skin-light #so-window,
+body.so-skin-light #so-plan-float {
+    --SmartThemeBodyColor: #1f2430;
+    --SmartThemeBlurTintColor: #f7f8fa;
+    --SmartThemeBorderColor: rgba(0, 0, 0, 0.14);
+    /* 强调色不能照抄深色档的 #8ab4f8 —— 那是压在近黑上才成立的淡蓝，放近白上会发飘 */
+    --SmartThemeQuoteColor: #3b6fd4;
+    --SmartThemeBotMesBlurTintColor: rgba(0, 0, 0, 0.035);
+    --SmartThemeUserMesBlurTintColor: rgba(59, 111, 212, 0.12);
+    --SmartThemeBlurStrength: 0px;
+    /* 见深色档同名声明的长注释。这一档的方框底是深的（#1f2430），对勾必须给浅色，
+       否则就是原生酒馆上实测的 1.35:1 —— 对勾看不见。 */
+    --SmartThemeCheckboxTickColor: #f7f8fa;
+    --so-ink: 0, 0, 0;
+    --so-field: rgba(0, 0, 0, 0.05);
+    --so-scrim: rgba(20, 22, 28, 0.55);
+}
+
+/* 固定配色下毛玻璃彻底关掉。底色已不透明、blur 本就不可见；置 none 是【构造性】保证 ——
+   无论用户的美化把 --blurStrength 调多高、把主聊天弄成什么样，都渗不进窗口 —— 顺带省一层
+   GPU 合成。--SmartThemeBlurStrength: 0px 是第二道防线，防将来有人新写一条 blur(calc(…))。 */
+body.so-skin-dark #so-window, body.so-skin-light #so-window, body.so-skin-dark #so-debug, body.so-skin-light #so-debug, body.so-skin-dark #so-curate, body.so-skin-light #so-curate, body.so-skin-dark #so-summary, body.so-skin-light #so-summary {
+    backdrop-filter: none;
+}
+
+/* 三张固定深色卡（1.27.1 起硬编码 #1b1d23 底 + 钉死浅色文字）：深色档与跟随主题档保持原样，
+   浅色档整体翻浅。在固定皮肤下这样做是安全的，因为固定皮肤【同时知道底色和文字色】——
+   1.27.1 当年只能「钉文字、不敢改底」，正是因为主题变量的取值不可知。
+   第四张 #so-fixsel-card 不在此列：1.27.1 已把它改成读 var(--SmartThemeBlurTintColor)，
+   随皮肤自动改色。卡内按钮的 hover 由 --so-ink 统一覆盖，三档下都自洽。 */
+body.so-skin-light #so-cur-card {
+    background-color: #f7f8fa;
+    color: #1f2430;
+}
+
+/* 卡内按钮自带钉死的浅色文字（1.27.1 为恒深色卡而钉），子元素的显式 color 不会被上面那条
+   卡级覆盖继承 —— 浅色档下就是浅字压浅底、按钮直接隐形。故一并翻深。
+   注意 #so-autowarn-ok 不在此列：它是白字压红底（!important），任何皮肤下都正确。 */
+body.so-skin-light .so-cur-btn {
+    color: #1f2430;
+}
+
+/* 同一缺陷族的第三例（1.45.0 终审补）：策展卡里的「预设已停用」徽章。它自带一层淡红底
+   rgba(224,124,124,.22)，压在浅色档的卡底 #f7f8fa 上合成出 rgb(242,221,222)，而文字色是
+   1.27.1 钉死的浅粉 #e89a9a —— 恒深色卡上 5.37:1，翻浅之后 1.70:1。
+   翻深【不能】直接用正文色 #1f2430：那样徽章就只是个灰底方块，读不出「这条被停用了」的
+   警示意味。取同一色相（#e89a9a 的深色对位，hsl 0° 62%）的 #952323 = 6.36:1。
+   ⚠ 这条能生效的前提：index.js 那个 <span> 上【没有】内联样式。它原本内联了一份与
+   .so-cur-disabled 逐条重复的声明，内联压过类规则 —— 本条会被静默吃掉。已一并删除。 */
+body.so-skin-light .so-cur-disabled {
+    color: #952323;
+}
+
+/* ==================== 🧭 下一拍建议（ENABLE_NEXT_BEAT，1.87.0）==================== */
+/* 设置：参谋条「参谋设置」组里的折叠子块（在 #so-window 里，走神谕皮肤变量）。 */
+.so-adv-nbeat-more { font-size: 0.82em; }
+.so-adv-nbeat-more > summary { cursor: pointer; opacity: 0.72; padding: 2px 0; user-select: none; }
+.so-adv-nbeat-more > summary:hover { opacity: 1; }
+.so-adv-nbeat-body { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 2px 10px; border-left: 2px solid rgba(128, 128, 128, 0.25); margin-top: 4px; }
+.so-adv-nbeat-body .so-adv-check,
+.so-adv-nbeat-body .so-adv-field { font-size: 1em; }
+.so-adv-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: vertical;
+}
+.so-adv-nbeat-btns { display: flex; gap: 6px; justify-content: flex-end; }
+/* 卡片：挂在【主聊天】最新 AI 回复的 .mes_text 之后——那里是酒馆的地盘，跟随酒馆主题（SmartTheme 变量），不跟神谕窗口皮肤。
+   前缀 so-nbeat- 刻意避开独立版插件的 so-next-beat- / so-nb-，两者同装也不串样式。 */
+.so-nbeat-chip {
+    margin: 6px 0 4px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px dashed rgba(128, 128, 128, 0.55);
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 100%;
+    user-select: none;
+}
+.so-nbeat-chip[data-state="error"] { border-style: solid; border-color: rgba(220, 90, 90, 0.7); background: rgba(220, 90, 90, 0.06); }
+.so-nbeat-head { font-size: 0.82em; font-weight: 600; opacity: 0.75; }
+.so-nbeat-goal { font-size: 0.85em; opacity: 0.8; padding: 3px 8px; border-radius: 6px; background: rgba(74, 144, 217, 0.12); word-break: break-word; }
+.so-nbeat-list { display: flex; flex-direction: column; gap: 3px; }
+.so-nbeat-opt { display: flex; align-items: flex-start; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; transition: background-color 0.12s ease; }
+.so-nbeat-opt:hover, .so-nbeat-opt:focus-visible { background-color: rgba(128, 128, 128, 0.16); outline: none; }
+.so-nbeat-tag { flex: 0 0 auto; font-size: 0.82em; font-weight: 600; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 2px; }
+.so-nbeat-tag-user { background: rgba(74, 144, 217, 0.24); }
+.so-nbeat-tag-role { background: rgba(160, 100, 220, 0.24); }
+.so-nbeat-tag-time { background: rgba(128, 128, 128, 0.24); }
+.so-nbeat-text { flex: 1 1 auto; min-width: 0; word-break: break-word; white-space: pre-wrap; user-select: text; }
+.so-nbeat-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.so-nbeat-busy { font-size: 0.85em; opacity: 0.75; }
+.so-nbeat-btn {
+    border: 1px solid rgba(74, 144, 217, 0.7);
+    background: rgba(74, 144, 217, 0.16);
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    border-radius: 6px;
+    padding: 3px 12px;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.so-nbeat-btn:hover { background: rgba(74, 144, 217, 0.3); }
+.so-nbeat-btn-minor { border-color: rgba(128, 128, 128, 0.5); background: transparent; }
+.so-nbeat-btn-minor:hover { background: rgba(128, 128, 128, 0.14); }
+.so-nbeat-err { font-size: 0.85em; padding: 5px 8px; border-radius: 6px; background: rgba(220, 90, 90, 0.08); word-break: break-word; }
+.so-nbeat-err-title { font-weight: 600; color: color-mix(in srgb, var(--crimson70a, #e07c7c) 82%, var(--SmartThemeBodyColor)); }
+.so-nbeat-err-detail { opacity: 0.85; white-space: pre-wrap; user-select: text; }
+
+/* ===== 设置分页 / 连接存档列表 / 提示词分组导航 / 输入框上方的模型切换栏（精简版 1.1）===== */
+
+/* ---------- 设置面板：分页（方案 A）---------- */
+/* 打开设置时铺满窗口主体：消息区与输入区让位，不再挤在上面 55% 的小框里 */
+#so-window.so-settings-open #so-messages,
+#so-window.so-settings-open #so-model-bar,
+#so-window.so-settings-open #so-footer { display: none; }
+#so-settings.so-tabbed { max-height: none; flex: 1 1 auto; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
+
+.so-set-tabbar {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    padding: 6px 8px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+}
+.so-set-tabbar::-webkit-scrollbar { display: none; }
+.so-set-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 11px 9px;
+    font: inherit;
+    font-size: 0.84em;
+    color: inherit;
+    opacity: 0.6;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.so-set-tab:hover { opacity: 0.9; }
+.so-set-tab.active { opacity: 1; color: var(--so-accent); border-bottom-color: var(--so-accent); font-weight: 600; }
+.so-set-page { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 0; padding: 4px 12px 14px; overflow-y: auto; }
+.so-set-page.active { display: flex; }
+
+/* 页内小节：小标题 + 内容；小节之间一条淡分隔 */
+.so-set-section { display: flex; flex-direction: column; gap: 9px; padding: 12px 0; }
+.so-set-section + .so-set-section { border-top: 1px solid rgba(var(--so-ink), 0.07); }
+.so-set-title { display: flex; align-items: center; gap: 7px; font-size: 0.78em; font-weight: 600; letter-spacing: 0.03em; opacity: 0.55; }
+.so-set-title .so-set-title-aside { margin-left: auto; font-weight: 400; letter-spacing: 0; opacity: 0.9; }
+
+/* 勾选项 + 一行灰色小字说明 */
+.so-opt { display: flex; flex-direction: column; gap: 1px; }
+.so-opt > .so-hint { padding-left: 24px; }
+
+/* 两段式切换（连接方式等） */
+.so-seg { display: inline-flex; align-self: flex-start; padding: 2px; gap: 2px; border-radius: 9px; background: rgba(var(--so-ink), 0.06); }
+.so-seg > button {
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 0.82em;
+    color: inherit;
+    opacity: 0.65;
+    background: none;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+}
+.so-seg > button.active { opacity: 1; font-weight: 600; background: rgba(var(--so-ink), 0.12); }
+
+/* 次要的小按钮 */
+.so-mini-btn {
+    flex: 0 0 auto;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 0.78em;
+    color: inherit;
+    background: rgba(var(--so-ink), 0.08);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    border-radius: 7px;
+    cursor: pointer;
+}
+.so-mini-btn:hover { background: rgba(var(--so-ink), 0.14); }
+.so-mini-btn.so-primary { color: #fff; border-color: transparent; background: color-mix(in srgb, var(--so-accent) 70%, black 10%); }
+.so-mini-btn:disabled { opacity: 0.5; cursor: default; }
+.so-icon-btn { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; font-size: 0.8em; color: inherit; opacity: 0.55; background: none; border: 0; border-radius: 7px; cursor: pointer; }
+.so-icon-btn:hover { opacity: 1; background: rgba(var(--so-ink), 0.1); }
+
+/* ---------- 连接存档：一行下拉 ---------- */
+.so-preset-list { position: relative; z-index: 6; display: flex; flex-direction: column; gap: 4px; }
+.so-preset-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 11px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: color-mix(in srgb, var(--so-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--so-accent) 45%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+}
+.so-preset-head:hover { background: color-mix(in srgb, var(--so-accent) 14%, transparent); }
+.so-preset-head > .fa-chevron-down { flex: 0 0 auto; font-size: 0.8em; opacity: 0.6; transition: transform 0.15s; }
+.so-preset-head[aria-expanded="true"] > .fa-chevron-down { transform: rotate(180deg); }
+.so-preset-count { flex: 0 0 auto; font-size: 0.74em; opacity: 0.55; }
+.so-preset-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.so-preset-name { font-size: 0.88em; font-weight: 600; }
+.so-preset-sub { font-size: 0.74em; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 弹出框：绝对定位浮在下方内容之上，不占文档流（同酒馆「连接配置」下拉），不会把下面的设置往下挤 */
+.so-preset-dropdown {
+    position: absolute;
+    z-index: 2;   /* 压过后面带 opacity 的元素（opacity<1 自成层叠上下文，会按文档顺序画到弹出框上面） */
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: var(--so-r-md, 12px);
+    background: var(--SmartThemeBlurTintColor, rgba(26, 26, 28, 0.98));
+    backdrop-filter: blur(12px);
+    box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    animation: so-open 0.12s ease;
+}
+#so-settings .so-preset-search { width: 100%; flex: 0 0 auto; }
+.so-preset-anchor { position: relative; }
+/* 暂停引导：目标与强度变淡，一眼看出现在没在引导 */
+#so-plan-bar.so-plan-paused #so-plan-goal,
+#so-plan-bar.so-plan-paused #so-plan-intensity { opacity: 0.45; }
+#so-plan-bar.so-plan-paused #so-plan-label { color: var(--so-fix-accent, #e3b341); }
+/* 当前连接改过、还没存回存档：存档名旁的小标 + 存档栏下面的提示条 */
+.so-preset-dirty {
+    margin-left: 6px;
+    padding: 0 6px;
+    font-size: 0.78em;
+    font-weight: 500;
+    vertical-align: 1px;
+    border-radius: 999px;
+    color: var(--so-fix-accent, #e3b341);
+    background: color-mix(in srgb, var(--so-fix-accent, #e3b341) 16%, transparent);
+}
+.so-preset-dirtybar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 0.8em;
+    border: 1px solid color-mix(in srgb, var(--so-fix-accent, #e3b341) 35%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--so-fix-accent, #e3b341) 9%, transparent);
+}
+.so-preset-dirtymsg { flex: 1 1 150px; min-width: 0; opacity: 0.85; }
+.so-preset-rows { display: flex; flex-direction: column; gap: 2px; max-height: min(280px, 45vh); overflow-y: auto; }
+.so-preset-opt[hidden], .so-preset-none[hidden] { display: none; }
+.so-preset-none { padding: 8px; font-size: 0.8em; opacity: 0.55; text-align: center; }
+.so-preset-opt { display: flex; align-items: center; gap: 4px; border-radius: 8px; }
+.so-preset-opt:hover { background: rgba(var(--so-ink), 0.07); }
+.so-preset-pick {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+.so-preset-mark { flex: 0 0 14px; font-size: 0.8em; color: var(--so-accent); }
+.so-preset-opt.current .so-preset-name { color: var(--so-accent); }
+.so-preset-add { display: flex; gap: 6px; }
+.so-preset-add input { flex: 1 1 auto; min-width: 0; }
+
+/* 「高级」折叠区 */
+.so-adv-fold > summary { cursor: pointer; list-style: none; font-size: 0.8em; opacity: 0.6; padding: 2px 0; }
+.so-adv-fold > summary::-webkit-details-marker { display: none; }
+.so-adv-fold > summary::before { content: '▸ '; }
+.so-adv-fold[open] > summary::before { content: '▾ '; }
+.so-adv-fold > .so-adv-fold-body { display: flex; flex-direction: column; gap: 9px; padding: 8px 0 2px 10px; border-left: 2px solid rgba(var(--so-ink), 0.08); margin-top: 6px; }
+
+/* ---------- 提示词页 ---------- */
+.so-pgroups { display: flex; flex-wrap: wrap; gap: 6px; }
+.so-pgroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    font: inherit;
+    font-size: 0.8em;
+    color: inherit;
+    opacity: 0.75;
+    background: rgba(var(--so-ink), 0.04);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
+    border-radius: 999px;
+    cursor: pointer;
+}
+.so-pgroup:hover { opacity: 1; }
+.so-pgroup.active { opacity: 1; color: var(--so-accent); border-color: color-mix(in srgb, var(--so-accent) 65%, transparent); background: color-mix(in srgb, var(--so-accent) 12%, transparent); font-weight: 600; }
+.so-pgroup-count { font-size: 0.85em; font-weight: 500; padding: 0 6px; border-radius: 999px; color: #fff; background: color-mix(in srgb, var(--so-accent) 70%, black 10%); }
+
+.so-plist { display: flex; flex-direction: column; gap: 4px; }
+.so-pitem {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 8px 10px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: rgba(var(--so-ink), 0.03);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.so-pitem:hover { background: rgba(var(--so-ink), 0.07); }
+.so-pitem.active { border-color: color-mix(in srgb, var(--so-accent) 55%, transparent); background: color-mix(in srgb, var(--so-accent) 8%, transparent); }
+.so-pitem-head { display: flex; align-items: center; gap: 6px; font-size: 0.86em; font-weight: 600; }
+.so-pitem-desc { font-size: 0.75em; line-height: 1.45; opacity: 0.6; }
+.so-pbadge { margin-left: auto; flex: 0 0 auto; font-size: 0.72em; font-weight: 500; padding: 1px 7px; border-radius: 999px; color: var(--so-accent); border: 1px solid color-mix(in srgb, var(--so-accent) 55%, transparent); }
+.so-pbadge.so-pbadge-warn { color: #f0a0a0; border-color: rgba(240, 160, 160, 0.55); }
+
+.so-peditor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 2px 0 6px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid color-mix(in srgb, var(--so-accent) 35%, transparent);
+}
+.so-peditor-head { display: flex; align-items: center; gap: 8px; font-size: 0.8em; opacity: 0.75; }
+.so-peditor-head .so-mini-btn { margin-left: auto; }
+.so-peditor textarea { min-height: 150px; font-size: 0.85em; line-height: 1.5; }
+.so-pvars { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.75em; }
+.so-pvars > span { opacity: 0.55; margin-right: 2px; }
+.so-pvar {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 1em;
+    padding: 2px 7px;
+    color: inherit;
+    background: rgba(var(--so-ink), 0.08);
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.so-pvar:hover { background: color-mix(in srgb, var(--so-accent) 25%, transparent); }
+.so-pvar small { font-family: inherit; opacity: 0.6; margin-left: 4px; }
+
+/* ---------- 输入框上方的模型切换栏 ---------- */
+#so-model-bar {
+    flex: 0 0 auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 6px 10px 0;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    background: rgba(0, 0, 0, 0.12);
+}
+#so-model-bar + #so-footer { border-top: 0; padding-top: 6px; }
+.so-model-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 0.78em;
+    color: inherit;
+    background: rgba(var(--so-ink), 0.06);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    border-radius: 999px;
+    cursor: pointer;
+}
+.so-model-pill:hover, .so-model-pill[aria-expanded="true"] { background: rgba(var(--so-ink), 0.12); }
+.so-model-pill > i:first-child { color: var(--so-accent); }
+.so-model-pill-name { font-weight: 600; white-space: nowrap; }
+.so-model-pill-sub { opacity: 0.6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-model-pill > .fa-chevron-up { font-size: 0.8em; opacity: 0.6; }
+
+.so-model-menu {
+    backdrop-filter: blur(12px);
+    position: absolute;
+    left: 10px;
+    bottom: calc(100% + 4px);
+    z-index: 20;
+    width: min(300px, calc(100% - 20px));
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    border-radius: var(--so-r-md, 12px);
+    background: var(--SmartThemeBlurTintColor, rgba(26, 26, 28, 0.98));
+    box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.so-model-menu-group { padding: 6px 8px 3px; font-size: 0.72em; opacity: 0.5; }
+.so-model-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 8px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.so-model-opt:hover { background: rgba(var(--so-ink), 0.08); }
+.so-model-opt-mark { flex: 0 0 14px; color: var(--so-accent); font-size: 0.8em; }
+.so-model-opt-main { display: flex; flex-direction: column; min-width: 0; }
+.so-model-opt-name { font-size: 0.86em; }
+.so-model-opt.current .so-model-opt-name { font-weight: 600; color: var(--so-accent); }
+.so-model-opt-sub { font-size: 0.72em; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-model-menu-sep { height: 1px; margin: 4px 6px; background: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12)); }
+
+.so-set-tabbar-spacer { flex: 1 1 auto; }
+.so-set-tabbar > .so-icon-btn { align-self: center; margin-left: 4px; }
+.so-set-stack { display: flex; flex-direction: column; gap: 9px; }
+.so-model-menu-empty { padding: 6px 8px 8px; font-size: 0.78em; opacity: 0.6; line-height: 1.45; }
+.so-pitem-label { min-width: 0; }
+.so-peditor[hidden] { display: none; }
+/* 标签图标按设置面板自身的宽度取舍：普通窗口（约 380px）只留文字，全屏等宽面板才带图标 */
+#so-settings.so-tabbed { container-type: inline-size; }
+.so-set-tab > i { display: none; }
+@container (min-width: 520px) {
+    .so-set-tab > i { display: inline-block; }
+}
