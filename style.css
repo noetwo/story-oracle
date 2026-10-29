@@ -1597,40 +1597,7 @@
 }
 #so-plan-directive.open { display: block; }
 
-/* ✏️ 注入内容编辑（1.48.0）。编辑框顶替 <pre> 的位置，配色与它同源（--so-field 底 +
-   主题正文色 + 主题描边），三档皮肤下自动跟随。 */
-#so-plan-editwrap { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-#so-plan-editbox {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    /* 与 #so-plan-directive 的 max-height 对齐：编辑器顶替预览的位置，不该比它能看见的字更少。 */
-    min-height: 180px;
-    font-family: inherit;
-    font-size: 0.85em;
-    line-height: 1.45;
-    color: var(--SmartThemeBodyColor, #e6e6e6);
-    background-color: var(--so-field);
-    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
-    border-radius: 6px;
-    padding: 6px 8px;
-}
-/* 节奏行被改掉时强度档置灰：连 hover 提亮一起撤掉，免得看着还能点。 */
-.so-plan-int:disabled { opacity: 0.45; cursor: default; }
-.so-plan-int:disabled:hover { filter: none; }
-/* 当前档那一颗（.active）不只是「点不动」，它还是【现在是哪一档】的唯一读数 —— 而它的字是压在
-   实心强调色上的【纯白】，整颗 45% 淡化等于把白字冲进底色里：1.48.0 眼检算得 浅色档 1.7:1、
-   深色档 2.0:1（另外两颗写的是主题正文色，45% 后 2.7:1 / 3.9:1，那是正常的置灰观感，保留）。
-   故这一颗改走「淡强调底 + 主题正文色」：分量仍明显轻于可点态，但档位读得出（浅 ~11:1 /
-   深 ~8:1）。跟随主题档同样受益 —— 正文色与窗口底本就是主题自己配好的一对。 */
-.so-plan-int.active:disabled {
-    opacity: 1;
-    color: var(--SmartThemeBodyColor, #e6e6e6);
-    background: color-mix(in srgb, var(--so-adv-accent) 28%, transparent);
-    border-color: color-mix(in srgb, var(--so-adv-accent) 45%, transparent);
-}
-
-/* ---- 序列引导（1.72.0）：拍列表 + 送回讨论钮。配色跟主题走（--so-field 底 + 主题正文/描边色，
+/* ---- 方案条的节点列表（2.5.0 剧情脉络；类名沿用 1.72.0 序列引导）+ 送回讨论钮。配色跟主题走（--so-field 底 + 主题正文/描边色，
    与 .so-plan-mini / #so-plan-directive 同源），送回讨论钮本体直接复用 .so-plan-mini，
    这里只管列表自己的排布。
    高度上限取 min(40vh, 240px) 的保守值：条会被搬进 #so-plan-float，而浮窗【没有高度上限】
@@ -1654,7 +1621,7 @@
 }
 .so-seq-row-btn:hover { filter: brightness(1.15); }
 .so-seq-row-body { white-space: pre-wrap; opacity: 0.85; padding: 2px 0 4px 20px; font-size: 0.8em; line-height: 1.5; }
-/* 贯穿设定（精简版）：拍列表首行 + 序列卡上的编辑框。编辑框配色与 #so-plan-editbox 同源。 */
+/* 列表首行（整体目标）+ 就地编辑框；参谋卡上节点详细的输入框也用 .so-seq-canon-box。 */
 .so-seq-canon > summary .so-seq-row-label { font-weight: 600; }
 .so-seq-canon-box {
     width: 100%; box-sizing: border-box; resize: vertical; min-height: 5em; margin: 4px 0;
@@ -1663,9 +1630,15 @@
     border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18)); border-radius: 6px; padding: 6px 8px;
 }
 .so-seq-canon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.so-seq-canon-count { margin-left: auto; font-size: 0.75em; opacity: 0.6; }
-.so-seq-canon-count.over { color: var(--crimson70a, #e07c7c); opacity: 0.95; }
-.so-seq-card-canon .so-seq-canon-box { font-size: 0.82em; }
+/* 剧情脉络（2.5.0）：节点名后面的关键词（淡一点）、改关键词的输入框、参谋卡上的详细框。 */
+.so-path-kw { opacity: 0.6; font-weight: 400; }
+.so-path-kw-box {
+    width: 100%; box-sizing: border-box; margin: 4px 0 0;
+    font-family: inherit; font-size: 0.85em; line-height: 1.45;
+    color: var(--SmartThemeBodyColor, #e6e6e6); background-color: var(--so-field);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18)); border-radius: 6px; padding: 4px 8px;
+}
+.so-plan-card .so-seq-canon-box { font-size: 0.82em; min-height: 3em; }
 
 /* ---------- plan adopt cards (under an advisor reply) ---------- */
 .so-plan-cards {

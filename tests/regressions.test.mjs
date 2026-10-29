@@ -32,7 +32,7 @@ function transport(response, settings = {}) {
         applyExtraHeaders: (h) => h, applyExtraBody: (b) => b,
         fetch: async () => response,
     };
-    const code = functions(['classifySseData', 'extractNonStreamContent', 'streamDirect']);
+    const code = functions(['classifySseData', 'unwrapCompletion', 'extractNonStreamContent', 'streamDirect', 'callDirect']);
     vm.runInNewContext(code.replace("import('/scripts/sse-stream.js')", 'Promise.resolve({ default: globalThis.EventSourceStream })'), ctx);
     return ctx;
 }
@@ -292,4 +292,131 @@ test('连接存档带上高级选项与生成参数；旧存档只比对已有�
     assert.equal(ctx.connPresetIsCurrent(old, { ...s, temperature: 0.2, stream: false }), true);
     // upsert 不把没给的项写成 undefined
     assert.equal('temperature' in ctx.connPresetUpsert([], old)[0], false);
+});
+
+// —— 剧情脉络（2.5.0）——
+function pathCtx(settings = {}) {
+    const speeds = source.match(/const ADVISOR_SPEEDS = \{[\s\S]*?\n\};/)?.[0];
+    assert.ok(speeds, '找不到 ADVISOR_SPEEDS');
+    const ctx = { getSettings: () => settings, getCtx: () => ({ substituteParams: (x) => x }) };
+    const varRe = source.match(/const PROMPT_VAR_RE = .*;/)?.[0];
+    assert.ok(varRe, '找不到 PROMPT_VAR_RE');
+    vm.runInNewContext(speeds + '\n' + varRe + '\n' + functions([
+        'renderPromptTemplate', 'pathSpeedKey', 'speedPaceLine', 'pathIsMulti', 'pathActiveNode', 'pathProgressLabel',
+        'pathNodeNeedsDetail', 'nodeTargetText', 'pathInjectionText', 'pathNodeFrom', 'buildPath', 'pathAdvance',
+        'pathSkipNode', 'pathSpliceTail', 'pathHasUnplayed', 'parseStoryPlanBlock', 'parseStoryPlans',
+    ]) + '\nglobalThis.ADVISOR_SPEEDS = ADVISOR_SPEEDS;', ctx);
+    // 注入用的几条提示词按注册表里的内置文本渲染
+    const defs = {};
+    for (const id of ['inject.path', 'inject.current', 'inject.paceLine', 'inject.speed.slow', 'inject.speed.normal', 'inject.speed.fast']) {
+        const at = source.indexOf(`{ id: '${id}'`);
+        assert.ok(at >= 0, '找不到提示词 ' + id);
+        const rest = source.slice(at);
+        const end = Math.min(...["\n    { id: '", '\n\n'].map((m) => { const i = rest.indexOf(m, 1); return i < 0 ? Infinity : i; }));
+        defs[id] = vm.runInNewContext('(' + rest.slice(0, end).replace(/,\s*$/, '') + ')', ctx);
+    }
+    ctx.P = (id, vars) => (vars ? ctx.renderPromptTemplate(defs[id].builtin, vars) : defs[id].builtin);
+    return ctx;
+}
+const PATH_BLOCK = `讨论到这里，排一下：
+<StoryPlan>
+标题：出城
+整体目标：苏哲和薇拉离开王都，在城外落脚
+1. 薇拉请缨：主动、收拾行囊、同行
+   详细：薇拉默默收拾行囊。
+   到这个节点结束时，两人已经决定同行。
+2. 城门盘查：卫兵、盘查、蒙混过关
+   详细：两人在北门被拦下。
+3. 林中扎营：天黑、扎营、守夜
+</StoryPlan>`;
+
+test('剧情脉络：解析多节点 / 单节点 / 截断尾块，旧序列格式不再认', () => {
+    const ctx = pathCtx();
+    const [multi] = ctx.parseStoryPlans(PATH_BLOCK);
+    assert.deepEqual(structuredClone(multi), {
+        title: '出城', overall: '苏哲和薇拉离开王都，在城外落脚',
+        nodes: [
+            { name: '薇拉请缨', keywords: '主动、收拾行囊、同行', detail: '薇拉默默收拾行囊。\n到这个节点结束时，两人已经决定同行。' },
+            { name: '城门盘查', keywords: '卫兵、盘查、蒙混过关', detail: '两人在北门被拦下。' },
+            { name: '林中扎营', keywords: '天黑、扎营、守夜', detail: '' },
+        ],
+    });
+    const singles = ctx.parseStoryPlans('两个方向：\n<StoryPlan>\n标题：匿名信\n目标：门缝里塞进一封信。\n信里写着交接时间。\n</StoryPlan>\n<story_plan>\ntitle: 旧识来访\ngoal: 老管家深夜登门。\n</story_plan>');
+    assert.deepEqual(structuredClone(singles), [
+        { title: '匿名信', overall: '', nodes: [{ name: '匿名信', keywords: '', detail: '门缝里塞进一封信。\n信里写着交接时间。' }] },
+        { title: '旧识来访', overall: '', nodes: [{ name: '旧识来访', keywords: '', detail: '老管家深夜登门。' }] },
+    ]);
+    const cut = ctx.parseStoryPlans('<StoryPlan>\n标题：出城\n1. 请缨：同行\n   详细：她收拾行囊\n2. 盘查');
+    assert.equal(cut.length, 1);
+    assert.deepEqual(structuredClone(cut[0].nodes.map((n) => n.name)), ['请缨', '盘查']);
+    assert.equal(ctx.parseStoryPlans('<StorySequence>\ntitle: 旧\nbeat: 第一拍\ngoal: x\n</StorySequence>').length, 0);
+    assert.equal(ctx.parseStoryPlans('<StoryPlan>\n只是一段话\n</StoryPlan>').length, 0);
+});
+
+test('剧情脉络：完成推进、跳过、用新卡替换剩下的部分', () => {
+    const ctx = pathCtx();
+    const [plan] = ctx.parseStoryPlans(PATH_BLOCK);
+    const path = ctx.buildPath(plan, 'fast', 10);
+    assert.equal(path.speed, 'fast');
+    assert.deepEqual(structuredClone(path.nodes.map((n) => n.status)), ['active', 'pending', 'pending']);
+    const r = ctx.pathAdvance(path, 15);
+    assert.equal(r.ended, false);
+    assert.equal(r.node.name, '城门盘查');
+    assert.equal(path.cursor, 1);
+    assert.equal(path.nodeStartAt, 15);
+    assert.equal(ctx.pathSkipNode(path, 2), false, '当前节点不能跳过');
+    assert.equal(ctx.pathSkipNode(path, 3), true);
+    // 替换剩下的部分：已完成的留着，id 续号
+    ctx.pathSpliceTail(path, { title: '', overall: '换个走法', nodes: [{ name: '翻墙', keywords: '夜里', detail: '' }, { name: '出海', keywords: '', detail: '' }] }, 20);
+    assert.deepEqual(structuredClone(path.nodes.map((n) => `${n.id}:${n.name}:${n.status}`)),['1:薇拉请缨:done', '4:翻墙:active', '5:出海:pending']);
+    assert.equal(path.title, '出城');
+    assert.equal(path.overall, '换个走法');
+    assert.equal(ctx.pathAdvance(path, 30).node.name, '出海');
+    assert.equal(ctx.pathAdvance(path, 40).ended, true);
+    assert.equal(ctx.pathHasUnplayed(path), false);
+});
+
+test('剧情脉络：注入按 整体目标 / 已完成 / 当前目标 / 后续 排列；单节点只有目标', () => {
+    const ctx = pathCtx();
+    const [plan] = ctx.parseStoryPlans(PATH_BLOCK);
+    const path = ctx.buildPath(plan, 'normal', 0);
+    ctx.pathAdvance(path, 5);
+    const lines = ctx.pathInjectionText(path).split('\n');
+    assert.equal(lines[0], '<剧情导向>');
+    assert.doesNotMatch(lines[1], /user|希望/);
+    assert.deepEqual(lines.slice(2), [
+        '整体目标：苏哲和薇拉离开王都，在城外落脚',
+        '已完成：薇拉请缨',
+        '当前目标（节点 2/3 · 城门盘查）：',
+        '两人在北门被拦下。',
+        '后续节点（只用来把握方向；当前目标达成之前，严禁写到这些情节）：林中扎营——天黑、扎营、守夜',
+        '节奏：' + ctx.ADVISOR_SPEEDS.normal.directive,
+        '</剧情导向>',
+    ]);
+    // 走到最后一个节点：它没写详细，先按节点名 + 关键词；没有后续那一行
+    ctx.pathAdvance(path, 9);
+    const last = ctx.pathInjectionText(path);
+    assert.match(last, /当前目标（节点 3\/3 · 林中扎营）：\n林中扎营——天黑、扎营、守夜\n节奏：/);
+    assert.doesNotMatch(last, /后续/);
+    assert.match(last, /已完成：薇拉请缨、城门盘查/);
+    // 单节点：只有「目标：」，没有整体目标 / 已完成 / 后续
+    const [single] = ctx.parseStoryPlans('<StoryPlan>\n标题：匿名信\n目标：门缝里塞进一封信。\n</StoryPlan>');
+    const one = ctx.pathInjectionText(ctx.buildPath(single, 'slow', 0)).split('\n');
+    assert.deepEqual(one.slice(2), ['目标：', '门缝里塞进一封信。', '节奏：' + ctx.ADVISOR_SPEEDS.slow.directive, '</剧情导向>']);
+    // 暂停不在这里判断（applyPlanInjection 负责），没有当前节点时为空
+    path.nodes[path.cursor].status = 'done';
+    assert.equal(ctx.pathInjectionText(path), '');
+});
+
+test('非流式回复外面多包一层 data 时也能取到正文（cline 中转实测）', async () => {
+    const wrapped = { data: { choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '<NodeDetail>\n写好了\n</NodeDetail>' } }] } };
+    const ctx = transport(new Response(JSON.stringify(wrapped), { headers: { 'content-type': 'application/json' } }));
+    assert.equal(await ctx.callDirect('mock', '', {}, undefined), '<NodeDetail>\n写好了\n</NodeDetail>');
+    assert.equal(ctx.soLastFinishReason, 'stop');
+    // 流式请求却回了普通 JSON（同样包一层）
+    const ctx2 = transport(new Response(JSON.stringify(wrapped)));
+    assert.equal((await read(ctx2)).text, '<NodeDetail>\n写好了\n</NodeDetail>');
+    // 正常的不包一层照旧
+    const ctx3 = transport(new Response(JSON.stringify(wrapped.data)));
+    assert.equal(await ctx3.callDirect('mock', '', {}, undefined), '<NodeDetail>\n写好了\n</NodeDetail>');
 });
