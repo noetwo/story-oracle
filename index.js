@@ -11674,11 +11674,11 @@ function fixFwdTwinSuppress(plan, canvas, graftedText) {
                 if (!via) continue;
                 // 同字文本在成品出现 >1 处 / 对应多条画布行 → 位置归因不了，不压
                 if (rowCount.get(rows[a]) !== 1 || rowCount.get(rows[b]) !== 1 || keptIdxs.length !== 1) {
-                    keptIdxs.forEach((i) => { multi.add(i); adjPairs.add(i + ' ' + rows[b]); });
+                    keptIdxs.forEach((i) => { multi.add(i); adjPairs.add(i + '\x00' + rows[b]); });
                     continue;
                 }
                 const i = keptIdxs[0];
-                adjPairs.add(i + ' ' + rows[b]);
+                adjPairs.add(i + '\x00' + rows[b]);
                 const prev = candOf.get(i);
                 if (prev && prev.bodyT !== rows[b]) { multi.add(i); continue; }
                 if (!prev) {
@@ -11714,7 +11714,7 @@ function fixFwdTwinSuppress(plan, canvas, graftedText) {
         for (const [i, t] of keptOf) {
             for (const bodyT of bodyTexts) {
                 if (!rel(bodyT, t)) continue;
-                if (!adjPairs.has(i + ' ' + bodyT)) far += 1;
+                if (!adjPairs.has(i + '\x00' + bodyT)) far += 1;
             }
         }
     }
