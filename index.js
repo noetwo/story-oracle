@@ -907,6 +907,19 @@ const FIX_TARGET_MODULES = {
           + '- 比喻不用现代 / 理科喻体（钢铁、岩石、计算机、代码），用这个世界里的事物。\n'
           + '（仅在奇幻 / 超自然设定下勾选此项。）',
         t2: '- 用本卡世界书里真实存在的魔法 / 设定词汇与典故替换，而非泛化的"魔力 / 符文"（依据世界书）。' },
+    // 二创版 2.1（用户反馈：西幻卡总冒古风词）。与「魔法被写成理科」同类：由用户按卡勾选，不自判设定。
+    archaic: { label: '古风词混入（西幻 / 现代设定）',
+        t1: '- 这张卡不是中式古风 / 武侠 / 仙侠设定：把混进来的中式古风、武侠词换成本设定里的说法，意思和语气不变。下面箭头后举的是西幻的例子，现代设定就换成现代说法。常见几类：\n'
+          + '  · 称谓与自称：在下、小生、本座、老夫、贫道、公子、姑娘、小娘子、相公、夫君、兄台、大侠、掌柜、小二、客官、施主 → 我 / 先生 / 小姐 / 女士 / 阁下 / 大人 / 老板 / 酒保…\n'
+          + '  · 钱币、服饰、器物：银两、铜板、文钱、锦袍、长衫、襦裙、发簪、玉佩、绣鞋、宣纸、毛笔、八仙桌、太师椅 → 金币 / 银币 / 斗篷 / 长裙 / 发夹 / 羊皮纸 / 鹅毛笔 / 长桌…\n'
+          + '  · 时间与计量：时辰、一炷香、一盏茶、三更、半晌、晌午、丈、尺、寸 → 钟点 / 片刻 / 午夜 / 中午 / 几步远…，或干脆写成可感的描述。\n'
+          + '  · 礼节、身份与机构：作揖、抱拳、拱手、福身、叩首、万福、衙门、捕快、府衙、知府、县令、镖局、客栈、书生、秀才、丫鬟、小厮 → 鞠躬 / 屈膝礼 / 抚胸行礼 / 卫兵 / 治安官 / 领主 / 旅店 / 学者 / 女仆 / 侍从…\n'
+          + '  · 文白腔与江湖腔：罢了、便是、甚好、莫要、岂敢、休得、何须、江湖、武林、内力、真气、经脉、丹田、轻功 → 平实的现代白话，或本设定的说法（魔力、斗气、战技…）。\n'
+          + '  · 带中国历史典故的成语 / 歇后语（卧薪尝胆、红颜祸水、三从四德、守株待兔…）→ 换成平实说法；「毫不犹豫」「若有所思」这类通用四字词不算古风，别动。\n'
+          + '- 只换词，不改剧情、动作和句子结构；换完要读得像通顺的中文西幻 / 现代小说，不要生造翻译腔，也别硬塞英文。\n'
+          + '- 设定里本就有的东方元素（远东来客、异国商人、东方流派的人物）和角色刻意的口头禅照常保留。\n'
+          + '（仅在西幻、现代或其它非中式古风设定下勾选此项。）',
+        t2: '- 换词优先用本卡角色卡 / 世界书里真实存在的称谓、货币、机构、历法与魔法体系名称（依据角色卡与世界书）。' },
     pacing: { label: '描写拖沓 / 流水账',
         t1: '- 描写服务剧情推进、人物心理或核心矛盾；平庸过渡一笔带过，一个场景最多 1 个关键细节（以质代量）。\n'
           + '- 默认"中景"写人，不扫脸 / 不扫手 / 不扫身体局部，落在行为与整体气场上，别近景逐一扫描眼睛 / 嘴角 / 手指 / 呼吸。\n'
@@ -996,6 +1009,8 @@ const FIX_PREFILTER_PATTERNS = {
     magic: /分子|原子|离子|电子|量子|波长|频率|共振|催化剂|氧化|浓度|密度|能量|熵|电磁|细胞|基因|DNA|蛋白质|神经元|突触|代谢|免疫|参数|数据|算法|系统|模块|信号|功率|电压|电流|构型|拓扑|矿化|检测到|解析|逻辑|代码|功能模块|数据包|压力过载|神经信号/,
     // 描写拖沓 / 详略失当（语料注：难正则化，仅作弱信号）：解剖 / 骨骼名词扫描
     pacing: /脊椎|尾椎|下颌骨|颧骨|肩胛骨|肋骨|髋骨|桡骨|胫骨/,
+    // 古风词混入（二创版 2.1，仅西幻 / 现代卡勾选）：与 FIX_TARGET_MODULES.archaic 列举的几类同源
+    archaic: /在下|小生|本座|老夫|贫道|公子|姑娘|娘子|相公|夫君|兄台|大侠|掌柜|小二|客官|施主|银两|铜板|文钱|锦袍|长衫|襦裙|发簪|玉佩|绣鞋|宣纸|毛笔|八仙桌|太师椅|时辰|一炷香|一盏茶|三更|半晌|晌午|作揖|抱拳|拱手|福身|叩首|万福|衙门|捕快|府衙|知府|县令|镖局|客栈|书生|秀才|丫鬟|小厮|罢了|甚好|莫要|岂敢|休得|何须|江湖|武林|内力|真气|经脉|丹田|轻功|卧薪尝胆|红颜祸水|三从四德|守株待兔|[一二三四五六七八九十两几数半][丈尺寸](?![子度])/,
 };
 
 // 纯函数：自动模式发 LLM 调用前的成本门。返回 false = 不值得调用（直接跳过该回复）。
@@ -1007,7 +1022,7 @@ function fixPreFilter(text, targets, constraints, minChars) {
     const min = Number(minChars) || 0;
     if ([...s].length < min) return false;
     const t = targets || {};
-    for (const key of ['slop', 'dialogue', 'precision', 'magic', 'pacing']) {
+    for (const key of ['slop', 'dialogue', 'precision', 'magic', 'pacing', 'archaic']) {
         if (!t[key]) continue;
         const re = FIX_PREFILTER_PATTERNS[key];
         if (re && re.test(s)) return true;
@@ -1451,9 +1466,9 @@ function fixSelGraphemes(raw, s, e) {
 function compileFixTargets(targets, ctx, constraints, overrides) {
     const t = targets || {}, c = ctx || {}, con = constraints || {};
     const ovs = (overrides && typeof overrides === 'object') ? overrides : {};
-    const gate = { slop: c.card && c.context, dialogue: c.card, magic: c.world };
+    const gate = { slop: c.card && c.context, dialogue: c.card, magic: c.world, archaic: c.card || c.world };
     const blocks = [];
-    for (const key of ['slop', 'dialogue', 'precision', 'magic', 'pacing']) {
+    for (const key of ['slop', 'dialogue', 'precision', 'magic', 'pacing', 'archaic']) {
         if (!t[key]) continue;
         const m = FIX_TARGET_MODULES[key];
         if (!m) continue;
@@ -1487,6 +1502,7 @@ function fixTargetOverrides(s) {
         precision: g.fixTargetPrecisionPrompt,
         magic: g.fixTargetMagicPrompt,
         pacing: g.fixTargetPacingPrompt,
+        archaic: g.fixTargetArchaicPrompt,
     };
 }
 
@@ -2140,7 +2156,7 @@ const defaults = {
     // ✨ 校正目标 chip 文本覆盖（1.47.0，Prince 决定 1：整份替换、勾上即恒发；【标签】头程序自动加）。
     // 全局键（不进 FIX_CFG_KEYS：提示词文本是用户偏好，不随聊天 / 套餐走）。空 = 用内置模块正文。
     fixTargetSlopPrompt: '', fixTargetDialoguePrompt: '', fixTargetPrecisionPrompt: '',
-    fixTargetMagicPrompt: '', fixTargetPacingPrompt: '',
+    fixTargetMagicPrompt: '', fixTargetPacingPrompt: '', fixTargetArchaicPrompt: '',
     sysPromptPresetName: '',   // '' = use systemPrompt textarea; else name of a Chat Completion preset
     // Frozen, per-preset curations. Keyed by preset name -> { items:[...], curatedAt }.
     // Each item is a kept block in final (possibly reordered) order:
@@ -2171,10 +2187,14 @@ const defaults = {
     // 静默删光（HANDOFF-MARKFIX §3.1，depth=0 工厂默认即复现），码侧收走 = 结构性不可删。关掉 = 旧行为
     // （思考块留在正文里，模型可按「用户指令优先」软条款改它——这正是不做静默锁定的出口）。
     fixM_protectThink: true,
+    // 二创版 2.1：手动整篇校正的正文标签。留空 = 整条回复（旧行为）；填了且回复里有这个标签 = 只改标签里的正文，
+    // 标签外原样留在信封里、应用时原位回插（与自动的 fixA_scopeTag 同一套 splitContentScope / wrapContentScope）。
+    fixM_scopeTag: '',
     // 自动模式（按目标校正按钮 + 每条新回复自动校正）——跑得勤，故默认精简省钱：只发回复正文 + 目标，按需才加上下文。
     fixA_includeCard: false, fixA_includeContext: false, fixA_contextDepth: 30, fixA_includeWorld: false, fixA_includeSummary: false,
     // 目标默认开（除魔法——仅奇幻设定才需要）：八股 / 对话 / 精确 / 详略。
     fixA_targetSlop: true, fixA_targetDialogue: true, fixA_targetPrecision: true, fixA_targetMagic: false, fixA_targetPacing: true,
+    fixA_targetArchaic: false,   // 二创版 2.1：古风词混入（仅西幻 / 现代卡勾选，默认关）
     fixA_knowledgeBoundary: '', fixA_guardrails: '',
     fixA_keepTags: '', fixA_dropTags: '',
     // ✨ 作用域标签（用户功能请求）：只校正 <content>…</content> 内的正文，正文【外】的所有块（状态栏 / 选项 /
@@ -6638,9 +6658,10 @@ const FIX_CFG_KEYS = [
     // 手动模式（per-chat 可覆盖）
     'fixM_contextDepth', 'fixM_includeCard', 'fixM_includeWorld', 'fixM_includeSummary',
     'fixM_protectThink',   // ✨ 思考块保护（W1 2026-08-16）：偏好键，per-chat 可覆盖、可进套餐
+    'fixM_scopeTag',       // 二创版 2.1：手动整篇的正文标签（per-chat，可进套餐）
     // 自动模式（per-chat 可覆盖）
     'fixA_includeCard', 'fixA_includeContext', 'fixA_contextDepth', 'fixA_includeWorld', 'fixA_includeSummary',
-    'fixA_targetSlop', 'fixA_targetDialogue', 'fixA_targetPrecision', 'fixA_targetMagic', 'fixA_targetPacing',
+    'fixA_targetSlop', 'fixA_targetDialogue', 'fixA_targetPrecision', 'fixA_targetMagic', 'fixA_targetPacing', 'fixA_targetArchaic',
     'fixA_knowledgeBoundary', 'fixA_guardrails', 'fixA_keepTags', 'fixA_dropTags', 'fixA_scopeTag', 'fixA_scopeManual', 'fixA_tighten',
     'fixA_pieceMode', 'fixA_pieceAsked',   // ✨ 分段校正（1.18.0）：正文形态按聊天记忆 + 已询问标记（卡片专属，不进套餐）
     'fixA_pieceJoin',   // ✨ 整体校正开关（偏好，可进套餐）：1 次调用锚点保留 vs 分段逐次调用
@@ -6684,7 +6705,7 @@ function resolveFixModeCfg(e, mode) {
             includeSummary: !!c.fixA_includeSummary, tighten: true,   // 1.18.3：✂️收紧 开关移除，轻校恒收紧（fixA_tighten 键保留，只为旧配置 / 套餐兼容）
             targets: {
                 slop: !!c.fixA_targetSlop, dialogue: !!c.fixA_targetDialogue, precision: !!c.fixA_targetPrecision,
-                magic: !!c.fixA_targetMagic, pacing: !!c.fixA_targetPacing,
+                magic: !!c.fixA_targetMagic, pacing: !!c.fixA_targetPacing, archaic: !!c.fixA_targetArchaic,
             },
             knowledge: c.fixA_knowledgeBoundary || '', guardrails: c.fixA_guardrails || '',
             keepTags: c.fixA_keepTags || '', dropTags: c.fixA_dropTags || '',
@@ -6709,8 +6730,9 @@ function resolveFixModeCfg(e, mode) {
     return {
         includeCard: !!c.fixM_includeCard, includeContext: depth !== 0, contextDepth: depth,
         includeWorld: !!c.fixM_includeWorld, includeSummary: !!c.fixM_includeSummary, tighten: false,
-        targets: { slop: false, dialogue: false, precision: false, magic: false, pacing: false },
-        knowledge: '', guardrails: '', keepTags: '', dropTags: '', scopeTag: '',   // 手动不走作用域（captureFixContext 也按 mode 门控）
+        targets: { slop: false, dialogue: false, precision: false, magic: false, pacing: false, archaic: false },
+        knowledge: '', guardrails: '', keepTags: '', dropTags: '',
+        scopeTag: normalizeScopeInput(c.fixM_scopeTag),   // 二创版 2.1：手动整篇的正文标签（只在整篇手动生效，captureFixContext 按 wholeFloor 门控）
         scopeManual: false,   // 手动模式下这个字段无意义（作用域本就关闭），给个确定值避免 undefined 外泄
         pieceMode: '', pieceAsked: false, pieceJoin: false,   // 手动模式不走分段（captureFixContext 也按 mode 门控）；给确定值避免 undefined 外泄
         promptVersion: 'light', promptFlavor: 'deepseek',   // 手动模式不走精校（buildFixPrompt 手动分支另选 FIX_SYSTEM_PROMPT_MANUAL）；给确定值避免 undefined 外泄
@@ -12709,7 +12731,7 @@ function fixConfigWarnings(cfg, reply) {
     const c = cfg || {};
     const warnings = [];
     const wrapperRatioMin = 0.6;   // 顶层块跨度 / 回复总长 ≥ 此值 → 判定为「正文外壳」而非真正的排除小块
-    const targetKeys = ['fixA_targetSlop', 'fixA_targetDialogue', 'fixA_targetPrecision', 'fixA_targetMagic', 'fixA_targetPacing'];
+    const targetKeys = ['fixA_targetSlop', 'fixA_targetDialogue', 'fixA_targetPrecision', 'fixA_targetMagic', 'fixA_targetPacing', 'fixA_targetArchaic'];
 
     const hasReply = reply != null && reply !== '';
     const replyLen = hasReply ? String(reply).length : 0;
@@ -19031,6 +19053,8 @@ function buildWindow() {
                         <label class="so-check so-lb-check"><input id="so-fixm-preset" type="checkbox"><span>经自定义补全预设发送（破限 / 越狱用）</span></label>
                         <div class="so-hint">仅当模型拒绝校正请求时才开（需先在【设置】里精选一个补全预设）。</div>
                         <div class="so-hint so-fixm-warn">⚠ 部分模型（如 DeepSeek、Gemini）在高上下文下会认不准要改哪一条回复、把前文内容混进结果——下面几项默认关闭，仅在确有需要（对齐设定 / 前情）时再逐项开启。若确要带前文，更建议改用 ✂️ 选段校正：只把你划选的一段发给模型，高上下文下更稳，也绝不动没划到的部分。</div>
+                        <label class="so-check so-lb-check"><span>只改此标签内的正文</span>&nbsp;<input id="so-fixm-scope" type="text" style="width:110px;" placeholder="留空 = 整条"></label>
+                        <div class="so-hint">填正文所在的标签名（如 <code>Interleaving</code>，不用写尖括号）：模型只看到、只改这个标签里的正文，标签外的构建块、状态栏、占位符原样保留。留空，或这条回复里没有这个标签时，按整条回复处理。</div>
                         <label class="so-check so-lb-check"><span>加载前文条数（-1 = 全部）</span>&nbsp;<input id="so-fixm-depth" type="number" min="-1" max="100" style="width:64px;"></label>
                         <label class="so-check so-lb-check"><input id="so-fixm-card" type="checkbox"><span>带上角色卡（描述 / 性格 / 场景）</span></label>
                         <label class="so-check so-lb-check"><input id="so-fixm-world" type="checkbox"><span>带上当前激活世界书</span></label>
@@ -19055,6 +19079,7 @@ function buildWindow() {
                             <label class="so-check so-lb-check"><input id="so-fix-tgt-precision" type="checkbox"><span>过度精确（数学论文腔）</span></label>
                             <label class="so-check so-lb-check"><input id="so-fix-tgt-magic" type="checkbox"><span>魔法被写成理科（仅奇幻设定）</span></label>
                             <label class="so-check so-lb-check"><input id="so-fix-tgt-pacing" type="checkbox"><span>描写拖沓 / 流水账</span></label>
+                            <label class="so-check so-lb-check"><input id="so-fix-tgt-archaic" type="checkbox"><span>古风词混入（仅西幻 / 现代设定）</span></label>
                         </div>
                         <label class="so-check so-lb-check"><span>强度</span>&nbsp;<select id="so-fix-prompt-version" title="轻校＝现行提示词（较克制）；精校＝更彻底的三道工序校正"><option value="light">轻校（默认）</option><option value="thorough">精校（更彻底）</option></select></label>
                         <label class="so-check so-lb-check" id="so-fix-prompt-flavor-row"><span>精校侧重</span>&nbsp;<select id="so-fix-prompt-flavor" title="按你用的模型选侧重：DeepSeek / 国产模型选 DeepSeek 类；Claude / Opus 选 Opus 类；Gemini 选 Gemini 类"><option value="deepseek">DeepSeek 类（默认）</option><option value="opus">Opus 类</option><option value="gemini">Gemini 类</option></select></label>
@@ -19913,12 +19938,20 @@ function bindControls() {
     bindFix('#so-fixm-world', 'fixM_includeWorld');
     bindFix('#so-fixm-summary', 'fixM_includeSummary');
     bindFix('#so-fixm-protectthink', 'fixM_protectThink');   // ✨ 思考块保护（W1）
+    bindFix('#so-fixm-scope', 'fixM_scopeTag');   // 二创版 2.1：手动整篇的正文标签（留空 = 整条）
+    win.querySelector('#so-fixm-scope').addEventListener('blur', (e) => {   // 失焦清洗：全角括号 / <> 包装 / 多词只取第一个
+        const cleaned = normalizeScopeInput(e.target.value);
+        if (cleaned === e.target.value) return;
+        e.target.value = cleaned;
+        setFixCfg({ fixM_scopeTag: cleaned });
+    });
     // 自动模式控件（fixA_*）——目标 / 排除区 / 约束 / 收紧 / 折叠上下文 + 运行按钮 + 自动开关。
     bindFix('#so-fix-tgt-slop', 'fixA_targetSlop');
     bindFix('#so-fix-tgt-dialogue', 'fixA_targetDialogue');
     bindFix('#so-fix-tgt-precision', 'fixA_targetPrecision');
     bindFix('#so-fix-tgt-magic', 'fixA_targetMagic');
     bindFix('#so-fix-tgt-pacing', 'fixA_targetPacing');
+    bindFix('#so-fix-tgt-archaic', 'fixA_targetArchaic');
     // ✨ 作用域标签（per-chat）。Phase 5（D+E）：用户在这里亲手打字 = 明确表达了意图，标记 fixA_scopeManual:true——
     // 之后 resolveFixScope 缓存未命中时永不代替用户改写，只会建议（suggest），不会自作主张 detected 采纳新标签。
     win.querySelector('#so-fix-scope').addEventListener('input', (e) => { setFixCfg({ fixA_scopeTag: e.target.value, fixA_scopeManual: true }); updateFixVerdict(); renderFixConfigWarnings(); });
@@ -25345,7 +25378,7 @@ function resetFixCfg() {
     setFixCfg({
         fixA_scopeTag: 'content', fixA_scopeManual: false,
         fixA_pieceMode: '', fixA_pieceAsked: false, fixA_pieceJoin: true,   // ✨ 分段校正：清掉正文形态记忆 + 已询问标记（回到「现场判」）；整体校正回默认开
-        fixA_targetSlop: true, fixA_targetDialogue: true, fixA_targetPrecision: true, fixA_targetMagic: false, fixA_targetPacing: true,
+        fixA_targetSlop: true, fixA_targetDialogue: true, fixA_targetPrecision: true, fixA_targetMagic: false, fixA_targetPacing: true, fixA_targetArchaic: false,
         fixA_keepTags: '', fixA_dropTags: '', fixA_knowledgeBoundary: '', fixA_guardrails: '',
         fixA_tighten: true, autoFixEnabled: false,
         // 📋 自定义模板任务：本聊天回到「校正」任务、清模板选择与自带两区、沿用识别回默认开。
@@ -25390,12 +25423,14 @@ function seedFixControls() {
     set('#so-fixm-world', 'checked', !!cfg.fixM_includeWorld);
     set('#so-fixm-summary', 'checked', !!cfg.fixM_includeSummary);
     set('#so-fixm-protectthink', 'checked', cfg.fixM_protectThink !== false);   // ✨ 思考块保护（W1）：缺键=开，与 resolveFixModeCfg 同式
+    set('#so-fixm-scope', 'value', cfg.fixM_scopeTag || '');   // 二创版 2.1：手动整篇的正文标签
     // 自动（fixA_*）
     set('#so-fix-tgt-slop', 'checked', !!cfg.fixA_targetSlop);
     set('#so-fix-tgt-dialogue', 'checked', !!cfg.fixA_targetDialogue);
     set('#so-fix-tgt-precision', 'checked', !!cfg.fixA_targetPrecision);
     set('#so-fix-tgt-magic', 'checked', !!cfg.fixA_targetMagic);
     set('#so-fix-tgt-pacing', 'checked', !!cfg.fixA_targetPacing);
+    set('#so-fix-tgt-archaic', 'checked', !!cfg.fixA_targetArchaic);
     set('#so-fix-scope', 'value', cfg.fixA_scopeTag != null ? cfg.fixA_scopeTag : 'content');   // ✨ 作用域标签（默认 content）
     set('#so-fix-join', 'checked', cfg.fixA_pieceJoin !== false);   // ✨ 整体校正（默认开）
     set('#so-fix-keep', 'value', cfg.fixA_keepTags || '');
@@ -25961,6 +25996,13 @@ const PROMPT_DEFS = [
         builtin: FIX_TARGET_MODULES.pacing.t1 + (FIX_TARGET_MODULES.pacing.t2 ? '\n' + FIX_TARGET_MODULES.pacing.t2 : ''),
         legacy: { key: 'fixTargetPacingPrompt', kind: 'override' },
         note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.pacing.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.target.archaic', group: '校正目标', label: FIX_TARGET_MODULES.archaic.label,
+        desc: `勾选「${FIX_TARGET_MODULES.archaic.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.archaic.t1 + (FIX_TARGET_MODULES.archaic.t2 ? '\n' + FIX_TARGET_MODULES.archaic.t2 : ''),
+        legacy: { key: 'fixTargetArchaicPrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.archaic.t2
             ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
             : '改过后整份恒发。') },
     { id: 'fix.knowledge', group: '校正目标', label: '角色知识边界',
@@ -27595,7 +27637,8 @@ async function generateReply() {
     } else if (fixMode) {
         // 校正模式（手动 / 引导式：在输入框直接说要改什么）：抓待校正回复 + 手动那套上下文（卡 / 世界书 / 概要 / 全部前文）。
         // wholeFloor:true = 整篇手动（思考块保护 W1 只在这条分支生效；✂️ 选段家族同以 mode:'manual' 调用但不传）。
-        await captureFixContext(s, { mode: 'manual', wholeFloor: true });
+        const fixCap = await captureFixContext(s, { mode: 'manual', wholeFloor: true });
+        if (fixCap && fixCap.manualScopeMissed) addSystemNote(`这条回复里没找到 <${fixCap.manualScopeMissed}> 标签，本次按整条回复校正。`);
         // R2 双重校正（手动）：目标当前 swipe 已是校正结果 → 提醒；仍继续（在其基础上再校正）。
         if (isFixSwipe((getCtx().chat || [])[fixTargetIdx])) addSystemNote('这条回复当前显示的已是一次校正结果；将在其基础上再次校正（如需校正原文请先左滑回原文）。');
         // ⟦记号前推⟧（ENABLE_FIX_FORWARD）：手动整篇校正换契约 —— 这里建画布并武装模块槽，
@@ -28159,6 +28202,7 @@ function mergeKeepTags(existing, blocks) {
 // 排除区 + 收紧。排除区仅自动有（手动 keepTags/dropTags 恒空）；MVU 机制块两模式都自动剥离（composeFixedReply 原样接回）。
 async function captureFixContext(s, { mode = 'manual', targetId, wholeFloor = false } = {}) {
     const ctx = getCtx();
+    let manualScopeMissed = '';   // 二创版 2.1：整篇手动填了正文标签、这条回复里却没有它 → 标签名（调用方据此提示）
     // ⟦记号前推⟧：每次抓取都先【解除武装】——只有 generateReply 的手动整篇分支会紧接着武装。
     // 这样「按目标校正」/ 自动 / 选段校正 都不可能捡到上一次的画布（否则会用错契约解析）。
     if (ENABLE_FIX_FORWARD) fixFwdState = null;
@@ -28179,8 +28223,8 @@ async function captureFixContext(s, { mode = 'manual', targetId, wholeFloor = fa
     // ✨ Phase 5（D+E）：不再直接 splitContentScope(norm.scopeTag) —— 缓存的标签可能已经不在这条回复里了（卡片
     // 格式变了 / 这条回复是个例）。resolveFixScope 先判「缓存是否命中」，未命中再按来源（自动可自纠 / 手动只建议）
     // 决定用哪个标签、要不要出提示；本函数只负责【决策 + 落状态】，不写配置也不发通知——那是 runAutoFix /
-    // runFixByTargets（D+E 门）的事，这里保持 captureFixContext「只搭建上下文」的既有契约。手动模式没有作用域
-    // （resolveFixModeCfg 早把 scopeTag 归一成 ''），fixScopeDecision 置空，行为与之前完全一致。
+    // runFixByTargets（D+E 门）的事，这里保持 captureFixContext「只搭建上下文」的既有契约。手动模式没有自动识别：
+    // 只有整篇手动填了正文标签（fixM_scopeTag，二创版 2.1）时才按那个标签拆信封，见下方最后一个分支。
     if (autoLike && ENABLE_FIX_PIECEWISE) {
         // ✨ 分段校正（1.18.0）：决策阶梯（提议→确认一次→记住）取代 resolveFixScope（老路径完整保留在下面的
         // else-if，关开关即字节回退）。wrapped 干净单块走 bypass = 字面老路径（fixScope 单段作用域，逐字节
@@ -28222,7 +28266,11 @@ async function captureFixContext(s, { mode = 'manual', targetId, wholeFloor = fa
         fixScopeDecision = null;
         fixPieceDecision = null;
         fixPieceTable = null;
-        fixScope = { active: false };
+        // 二创版 2.1：整篇手动也能只改某个标签里的正文（fixM_scopeTag）。只认 wholeFloor：✂️ 选段家族同以
+        // mode:'manual' 进来、只取上下文槽，绝不能被作用域改掉字节面。标签不在这条回复里 → 退回整条，并告诉调用方。
+        const wantScope = wholeFloor && mode === 'manual' && norm.scopeTag;
+        fixScope = wantScope ? splitContentScope(latest.text, norm.scopeTag) : { active: false };
+        if (wantScope && !fixScope.active) manualScopeMissed = norm.scopeTag;
     }
     // 📋 自定义模板任务（spec §5.2）：「整条」= 跳过整套阶梯，原文 + 自带两区 → raw 表（不剥 MVU）。沿用识别但阶梯没建出表
     // （whole：没包裹也没结构；或分段开关关着）→ 同一张表但 raw:false（仍剥 MVU、composeFixedReply 接回）。
@@ -28297,6 +28345,7 @@ async function captureFixContext(s, { mode = 'manual', targetId, wholeFloor = fa
         fixCardBlock = norm.includeCard ? buildCardSection(ctx) : '';
         fixWorldBlock = norm.includeWorld ? await buildWorldInfo('st', fixSideScan, { renderEjs: ENABLE_WI_EJS_RENDER && !!s.wiRenderEjs && mode === 'manual' }) : '';   // 仅【手动】校正执行世界书 EJS；自动 → raw
     }
+    return { manualScopeMissed };
 }
 
 // 校正卡的「解析成功 → 渲染 → 出按钮」公共段：generateReply 的 fixMode 分支与 runFixByTargets 共用（Phase 2b 评审要求去重）。
