@@ -262,3 +262,34 @@ test('移除实验卡后仍显示应用和看改动按钮，并保留陈旧/截�
         if (state === 'applied') assert.equal(apply.disabled, true);
     }
 });
+
+test('连接存档带上高级选项与生成参数；旧存档只比对已有的项', () => {
+    const keys = source.match(/const CONN_PRESET_KEYS = (\[[^\]]*\]);/)?.[1];
+    assert.ok(keys, '找不到 CONN_PRESET_KEYS');
+    const s = {
+        mode: 'direct', endpoint: 'https://a/v1', apiKey: 'k', model: 'm', directRawUrl: false,
+        directViaBackend: true, extraIncludeBody: 'a: 1', extraExcludeBody: '', extraIncludeHeaders: '',
+        temperature: 1, maxTokens: 12288, stream: true, sendTemperature: false,
+    };
+    const ctx = { getSettings: () => s };
+    vm.runInNewContext(`const CONN_PRESET_KEYS = ${keys};\n`
+        + functions(['connPresetUpsert', 'connPresetSnapshot', 'connValSame', 'connPresetIsCurrent'])
+        + '\nObject.assign(globalThis, { connPresetUpsert, connPresetSnapshot, connPresetIsCurrent });', ctx);
+    const list = ctx.connPresetUpsert([], { ...ctx.connPresetSnapshot(s), name: 'A' });
+    assert.deepEqual(structuredClone(list[0]), {
+        name: 'A', endpoint: 'https://a/v1', apiKey: 'k', model: 'm', rawUrl: false,
+        directViaBackend: true, extraIncludeBody: 'a: 1', extraExcludeBody: '', extraIncludeHeaders: '',
+        temperature: 1, maxTokens: 12288, stream: true, sendTemperature: false,
+    });
+    assert.equal(ctx.connPresetIsCurrent(list[0], s), true);
+    for (const [k, v] of [['temperature', 0.7], ['stream', false], ['directViaBackend', false], ['extraIncludeBody', '']]) {
+        assert.equal(ctx.connPresetIsCurrent(list[0], { ...s, [k]: v }), false, k);
+    }
+    // 清空的数字框（NaN）和存盘读回的 null 算同一个值
+    assert.equal(ctx.connPresetIsCurrent({ ...list[0], temperature: null }, { ...s, temperature: NaN }), true);
+    // 旧存档只有四项：其余设置怎么改都不算「已修改」
+    const old = { name: 'B', endpoint: 'https://a/v1', apiKey: 'k', model: 'm', rawUrl: false };
+    assert.equal(ctx.connPresetIsCurrent(old, { ...s, temperature: 0.2, stream: false }), true);
+    // upsert 不把没给的项写成 undefined
+    assert.equal('temperature' in ctx.connPresetUpsert([], old)[0], false);
+});

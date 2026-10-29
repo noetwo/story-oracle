@@ -2020,6 +2020,11 @@ let promptEditId = 'chat.system';
 // 注意：与 awaitMvuIdle 的 capMs（MVU 空闲等待上限，语义不同）区分——那个仍是 120000。
 const POST_REPLY_CALL_TIMEOUT_MS = 240000;
 
+// 2.4.0：除了端点 / 密钥 / 模型 / 地址原样，这些也随连接存档走——不同服务商要的转发、附加参数、温度、流式常常不一样。
+// 存档里的键名与设置键同名（「地址原样」沿用旧名 rawUrl）。旧存档缺这些键：getSettings 用升级时的当前值补齐；
+// 补齐之前（以及原版写回的存档）比较和切换都只看存档里有的项。
+const CONN_PRESET_KEYS = ['directViaBackend', 'extraIncludeBody', 'extraExcludeBody', 'extraIncludeHeaders', 'temperature', 'maxTokens', 'stream', 'sendTemperature'];
+
 const defaults = {
     mode: 'direct',            // 'direct' | 'profile'
     // direct mode
@@ -2545,6 +2550,13 @@ function getSettings() {
     for (const [k, v] of Object.entries(defaults)) {
         if (!(k in s)) s[k] = v;
     }
+    // 2.4.0：旧连接存档没有高级选项 / 生成参数，用此刻的当前值补上（刚升级时切换效果不变，之后各存各的）。
+    if (Array.isArray(s.connPresets)) {
+        for (const p of s.connPresets) {
+            if (!p || typeof p !== 'object') continue;
+            for (const k of CONN_PRESET_KEYS) if (!(k in p)) p[k] = s[k];
+        }
+    }
     // 一次性迁移：旧版单选 lorebookTarget（标量）→ 新版多选 lorebookTargets（数组）。
     // 迁移后清空标量，使本块幂等、不会在用户清空多选（= 全部激活）后又被旧值重新种回。
     if (typeof s.lorebookTarget === 'string' && s.lorebookTarget &&
@@ -2580,12 +2592,14 @@ function save() {
     getCtx().saveSettingsDebounced();
 }
 
-// A6：连接预设——把「端点 URL + API 密钥 + 模型 + 地址原样开关」存成命名快照，随时切换服务商。
+// A6：连接预设——把「端点 URL + API 密钥 + 模型 + 地址原样开关」存成命名快照，随时切换服务商；2.4.0 起
+// 高级选项与生成参数（CONN_PRESET_KEYS）也一起存。
 // connPresetUpsert / connPresetRemove 是纯函数（按 name 唯一、返回新数组、不原地改），进 EXPORT_NAMES 单测。
 // rawUrl（1.22.0）随预设走：同一地址在「原样 / 自动补 /v1」两种含义下不串味；旧预设缺省 false = 保存当时的行为。
 // 同名存档原位替换（1.2.1：「保存到此存档」后列表顺序不变；以前是删掉再追加到末尾）。
 function connPresetUpsert(list, preset) {
     const item = { name: preset.name, endpoint: preset.endpoint || '', apiKey: preset.apiKey || '', model: preset.model || '', rawUrl: !!preset.rawUrl };
+    for (const k of CONN_PRESET_KEYS) if (preset[k] !== undefined) item[k] = preset[k];
     const arr = [];
     let placed = false;
     for (const p of (Array.isArray(list) ? list : [])) {
@@ -2598,6 +2612,16 @@ function connPresetUpsert(list, preset) {
     }
     if (!placed) arr.push(item);
     return arr;
+}
+// 当前设置里要存进存档的那些项（存为新存档、保存到此存档共用）。
+function connPresetSnapshot(s) {
+    const snap = { endpoint: s.endpoint || '', apiKey: s.apiKey || '', model: s.model || '', rawUrl: !!s.directRawUrl };
+    for (const k of CONN_PRESET_KEYS) snap[k] = s[k];
+    return snap;
+}
+// 存档里的值和当前设置是否相同。数字框清空时是 NaN，存盘再读回来是 null，都算「空」。
+function connValSame(a, b) {
+    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 function connPresetRemove(list, name) {
     return (Array.isArray(list) ? list : []).filter((p) => p && p.name !== name);
@@ -2745,7 +2769,7 @@ function buildConnDirtyBar(p) {
     saveBtn.id = 'so-conn-preset-update';
     saveBtn.className = 'so-mini-btn so-primary';
     saveBtn.textContent = '保存到此存档';
-    saveBtn.title = `把现在的端点 / 密钥 / 模型 / 地址原样开关写回「${p.name}」`;
+    saveBtn.title = `把现在的端点、密钥、模型、高级选项和生成参数写回「${p.name}」`;
     saveBtn.addEventListener('click', () => saveToActiveConnPreset());
     const revert = document.createElement('button');
     revert.type = 'button';
@@ -15845,9 +15869,10 @@ function buildWindow() {
                     <div class="so-set-title"><i class="fa-solid fa-bookmark"></i>连接存档<span class="so-set-title-aside">输入框上方也能一键切换</span></div>
                     <div class="so-preset-list" id="so-conn-preset-list"></div>
                     <div class="so-preset-add">
-                        <input id="so-conn-preset-name" type="text" placeholder="给当前的端点 / 密钥 / 模型起个名字">
+                        <input id="so-conn-preset-name" type="text" placeholder="给当前连接起个名字">
                         <button type="button" class="so-mini-btn" id="so-conn-preset-save">存为新存档</button>
                     </div>
+                    <div class="so-hint">存档记下端点、密钥、模型，以及下面的高级选项和生成参数，切换存档时一起换。</div>
                 </div>
                 <div class="so-set-section">
                     <div class="so-set-title"><i class="fa-solid fa-plug"></i>当前连接</div>
@@ -15897,7 +15922,7 @@ function buildWindow() {
                     </div></details>
                 </div>
                 <div class="so-set-section">
-                    <div class="so-set-title"><i class="fa-solid fa-sliders"></i>生成参数</div>
+                    <div class="so-set-title"><i class="fa-solid fa-sliders"></i>生成参数<span class="so-set-title-aside">随连接存档保存</span></div>
                     <div class="so-grid2">
                         <label class="so-field"><span>温度</span>
                             <input id="so-temp" type="number" step="0.05" min="0" max="2">
@@ -16780,7 +16805,7 @@ function bindControls() {
     bind('#so-stream', 'stream');
     bind('#so-direct-backend', 'directViaBackend'); // 1.17.23：经酒馆后端转发（避免直连 CORS）
     bind('#so-raw-url', 'directRawUrl');            // 1.22.0：地址原样使用（不自动补 /v1，原生化自二创「最终模式」）
-    // A6：连接存档（端点 + 密钥 + 模型 + 地址原样开关的命名快照）。列表行上有「使用」「删除」，这里只管存新档。
+    // A6：连接存档（端点 + 密钥 + 模型 + 地址原样开关 + 高级选项与生成参数的命名快照）。列表行上有「使用」「删除」，这里只管存新档。
     win.querySelector('#so-conn-preset-save').addEventListener('click', async () => {
         const name = win.querySelector('#so-conn-preset-name').value.trim();
         if (!name) { if (window.toastr) window.toastr.info('先给存档起个名字', '故事神谕'); return; }
@@ -16788,6 +16813,7 @@ function bindControls() {
         const exists = (getSettings().connPresets || []).some((p) => p.name === name);
         if (exists && !(await uiConfirm(`已经有叫「${name}」的存档了，用现在的连接覆盖它吗？`))) return;
         getSettings().connPresets = connPresetUpsert(getSettings().connPresets, {
+            ...connPresetSnapshot(getSettings()),
             name,
             endpoint: win.querySelector('#so-endpoint').value.trim(),
             apiKey: win.querySelector('#so-apikey').value.trim(),
@@ -17565,11 +17591,12 @@ function populatePersonas() {
 }
 
 // ---------- 连接存档：一键切换（设置页的存档列表 + 输入框上方的切换栏共用）----------
-// 当前设置是否就是这个存档：直连模式下，端点、密钥、模型、「地址原样」四项都相同。
+// 当前设置是否就是这个存档：直连模式下，端点、密钥、模型、「地址原样」以及存档里记着的高级选项 / 生成参数都相同。
 function connPresetIsCurrent(p, s = getSettings()) {
     return !!p && s.mode === 'direct'
         && (p.endpoint || '') === (s.endpoint || '') && (p.apiKey || '') === (s.apiKey || '')
-        && (p.model || '') === (s.model || '') && !!p.rawUrl === !!s.directRawUrl;
+        && (p.model || '') === (s.model || '') && !!p.rawUrl === !!s.directRawUrl
+        && CONN_PRESET_KEYS.every((k) => !(k in p) || connValSame(p[k], s[k]));
 }
 function currentConnPreset(s = getSettings()) {
     const act = activeConnPreset(s);
@@ -17590,14 +17617,12 @@ function connPresetState(s = getSettings()) {
     const act = activeConnPreset(s);
     return act ? { preset: act, modified: true } : null;
 }
-// 把当前的端点 / 密钥 / 模型 / 地址原样开关写回最近用的存档（位置不变）。
+// 把当前的端点 / 密钥 / 模型 / 地址原样开关 / 高级选项与生成参数写回最近用的存档（位置不变）。
 function saveToActiveConnPreset() {
     const s = getSettings();
     const p = activeConnPreset(s);
     if (!p) return false;
-    s.connPresets = connPresetUpsert(s.connPresets, {
-        name: p.name, endpoint: s.endpoint, apiKey: s.apiKey, model: s.model, rawUrl: s.directRawUrl,
-    });
+    s.connPresets = connPresetUpsert(s.connPresets, { ...connPresetSnapshot(s), name: p.name });
     save();
     updateBadge();
     if (window.toastr) window.toastr.success(`已保存到「${p.name}」${s.model ? `（${s.model}）` : ''}`, '故事神谕', { timeOut: 1800 });
@@ -17624,6 +17649,7 @@ function applyConnPreset(name) {
     s.apiKey = p.apiKey || '';
     s.model = p.model || '';
     s.directRawUrl = !!p.rawUrl;   // 1.22.0：地址原样开关随存档走（旧存档缺省 = 关）
+    for (const k of CONN_PRESET_KEYS) if (k in p) s[k] = p[k];   // 2.4.0：高级选项与生成参数随存档走
     s.connPresetActive = p.name;
     save();
     if (win) {
@@ -17632,8 +17658,14 @@ function applyConnPreset(name) {
         setVal('#so-endpoint', s.endpoint);
         setVal('#so-apikey', s.apiKey);
         setVal('#so-model', s.model);
-        const raw = win.querySelector('#so-raw-url');
-        if (raw) raw.checked = s.directRawUrl;
+        const setChk = (sel, v) => { const el = win.querySelector(sel); if (el) el.checked = !!v; };
+        setChk('#so-raw-url', s.directRawUrl);
+        setChk('#so-direct-backend', s.directViaBackend);
+        setVal('#so-temp', s.temperature);
+        setVal('#so-maxtok', s.maxTokens);
+        setChk('#so-stream', s.stream);
+        setChk('#so-sendtemp', s.sendTemperature);
+        updateExtraParamsHint();
         applyModeVisibility();
     }
     updateBadge();   // 顺带重画存档列表与切换栏
@@ -27864,6 +27896,7 @@ function openExtraParams() {
             save();
             showErr(key, kind);
             updateExtraParamsHint();
+            updateBadge();   // 附加参数也随存档走：改了要马上显示「已修改」
         });
         showErr(key, kind);
     }
