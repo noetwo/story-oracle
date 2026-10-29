@@ -397,14 +397,12 @@ const CONDENSE_OPS_PROMPT = `你是一名角色卡「删减师」。你会收到
 
 【输出格式】
 可以先用 <thinking> 简短规划（几行即可）——<thinking> 整场至多开一次：只写定下来的判断，不列备选、不推翻重来，绝不在 <thinking> 里预写手术单；整段思考约 ≤1500 字符，写完立即闭合、一遍出稿。然后逐行输出手术单，每行以〔删〕〔缩〕〔过〕开头，不写编号、不写解释。手术单结束后，另起一段不超过五行的【技术报告】：哪类刀最多？哪些地方你想删但没把握、为什么？`;
-// 精简各工序 → 提示词（元测试：三份冻结件在此 + 各自调用点 = ≥2 处引用）。
-const CONDENSE_STAGE_PROMPTS = { light: DRAFT_CONDENSE_PROMPT, sect: CONDENSE_SECT_PROMPT, ops: CONDENSE_OPS_PROMPT };
 
 // 变体 → 访谈提示词（card 回冻结原件）。
 function builderInterviewPromptFor(key) {
-    if (key === 'steal') return BUILDER_INTERVIEW_PROMPT_STEAL;
-    if (key === 'nosteal') return BUILDER_INTERVIEW_PROMPT_NOSTEAL;
-    return BUILDER_INTERVIEW_PROMPT;
+    if (key === 'steal') return P('bld.interviewSteal');
+    if (key === 'nosteal') return P('bld.interviewNosteal');
+    return P('bld.interview');
 }
 
 // 【当前目标】行文案。开关关闭时回退旧两态字串（与 1.23.x 字节相同）；card 恒为 NPC 字串。
@@ -660,9 +658,9 @@ const BUILDER_FORGE_PROMPT_NOSTEAL = `【用户信息锻造·不抢话】你是�
 
 // 变体 → 锻造提示词（card 回冻结原件）。
 function builderForgePromptFor(key) {
-    if (key === 'steal') return BUILDER_FORGE_PROMPT_STEAL;
-    if (key === 'nosteal') return BUILDER_FORGE_PROMPT_NOSTEAL;
-    return BUILDER_FORGE_PROMPT;
+    if (key === 'steal') return P('bld.forgeSteal');
+    if (key === 'nosteal') return P('bld.forgeNosteal');
+    return P('bld.forge');
 }
 
 // 校正模式系统提示（Phase 2b 两段式：先 <problems> 定位违规片段，再 <FixedReply> 外科式修正）。
@@ -1466,12 +1464,11 @@ function compileFixTargets(targets, ctx, constraints, overrides) {
         blocks.push(body);
     }
     const know = String(con.knowledge || '').trim();
-    if (know) blocks.push('【角色知识边界】把以下当成关于角色已知 / 未知的事实约束，逐句检查：任何角色用到边界外的信息，'
-        + '就改成 ta 表现出不知道 / 疑惑 / 需要去查，自然不生硬；无法判断是否违反就保留原样。\n约束：' + know);
+    if (know) blocks.push(P('fix.knowledge', { knowledge: know }));
     const guard = String(con.guardrails || '').trim();
-    if (guard) blocks.push('【剧情护栏】遵守以下剧情规则，只纠正违反之处，不擅改其他剧情：\n' + guard);
+    if (guard) blocks.push(P('fix.guardrails', { guardrails: guard }));
     if (!blocks.length) return '';
-    return FIX_TARGETS_LEAD + '\n\n' + blocks.join('\n\n');
+    return P('fix.targetsLead') + '\n\n' + blocks.join('\n\n');
 }
 
 // ✨ 校正目标覆盖（1.47.0）：全局设置里的五份自定义正文 → compileFixTargets 的 overrides 参。
@@ -1706,8 +1703,8 @@ function buildPersonaBlock(personaId, mode, s) {
     }
     if (mode === 'advisor') {
         block += '\n\n' + P('persona.advisorDuty', null, st) + '\n\n' + P('persona.structGuard', null, st);
-    } else if (mode && PERSONA_MODE_OVERRIDES[mode]) {
-        block += '\n\n' + PERSONA_MODE_OVERRIDES[mode] + '\n\n' + PERSONA_STRUCT_GUARD_WI;
+    } else if (mode === 'lorebook' || mode === 'builder') {
+        block += '\n\n' + P('persona.' + mode + 'Duty', null, st) + '\n\n' + P('persona.structGuardWi', null, st);
     }
     return block;
 }
@@ -2097,52 +2094,6 @@ let promptEditId = 'chat.system';
 // 注意：与 awaitMvuIdle 的 capMs（MVU 空闲等待上限，语义不同）区分——那个仍是 120000。
 const POST_REPLY_CALL_TIMEOUT_MS = 240000;
 
-// 各模式可在设置里查看 / 修改的系统提示词。
-// chat 沿用旧行为：提示词正文直接存在 `systemPrompt` 里。
-// 其余各项存的是【覆盖】(override)，默认空串 —— 空 = 用内置默认，这样
-// 没改过的人能随版本继续拿到内置提示词的改进；用户一旦改动就冻结成自己这份，点
-// 「重置为默认」即把覆盖清空、退回内置。
-// note（可选）：该模式专属的额外叮嘱，applySysPromptModeUiState 会把它接在
-// 「已自定义 / 内置」那句后面显示。
-// sub（可选）：二级项标记。带 sub 的项【不】单独进主下拉，主下拉只出一颗同名合成入口，
-// 选中它才露出二级下拉挑具体哪一项（1.47.0 校正目标五件用的就是这条路）。
-
-// ✨ 校正目标编辑项的共用叮嘱（五项共用；twoTier = 该模块内置真的分两段，没有第二段的别说这句谎话）。
-function fixTargetEditNote(twoTier) {
-    return '校正目标指令块：此处只写内容，【标签】头由程序自动加。'
-        + (twoTier ? '内置分两段——第二段仅在所需依据（角色卡 / 前文 / 世界书）在场时附加；' : '')
-        + '自定义后整份恒发（勾上该目标就发你这份全文）。不勾选则不发送。';
-}
-
-const SYSPROMPT_MODES = [
-    { id: 'chat',     label: '普通聊天',   key: 'systemPrompt',         builtin: DEFAULT_SYSTEM_PROMPT },
-    { id: 'diagnose', label: '诊断 🩺',    key: 'diagnoseSystemPrompt', builtin: DIAGNOSE_SYSTEM_PROMPT },
-    { id: 'lorebook', label: '世界书 📖',  key: 'lorebookSystemPrompt', builtin: LOREBOOK_SYSTEM_PROMPT },
-    // 剧情参谋（单拍 <StoryPlan> 指令；不含弧线编译器）—— 1.17.7 起开放编辑（用户功能请求）。
-    { id: 'advisor',  label: '剧情参谋 🧭', key: 'advisorSystemPrompt',  builtin: ADVISOR_SYSTEM_PROMPT },
-    // ✨ 自动校正（1.46.0 开放编辑）：轻校 / 精校各一份全局覆盖。精校内置按聊天里的「侧重」分
-    // OPUS / DEEPSEEK 两版——这里的 builtin 只是编辑器展示用的默认侧重版；真正的选版在 buildFixPrompt
-    // （覆盖为空才走 resolveFixAutoPrompt）。手动校正与选段校正（冻结契约）不开放。
-    { id: 'fixlight',    label: '自动校正 · 轻校 ✨', key: 'fixLightSystemPrompt',    builtin: FIX_SYSTEM_PROMPT_TIGHTEN,
-      note: '轻校是自动校正的默认档。注意保留输出格式要求（<FixedReply> / <problems> 区块）——丢了它们，校正结果将无法被解析应用。' },
-    { id: 'fixthorough', label: '自动校正 · 精校 ✨', key: 'fixThoroughSystemPrompt', builtin: FIX_PROMPT_JINGXIAO_DEEPSEEK,
-      note: '内置精校按「侧重」分 DeepSeek / Opus 两版，此处显示默认（DeepSeek 克制版）；一旦自定义，两种侧重都改用你这份。注意保留输出格式要求（<FixedReply> / <工序记录> 区块）。' },
-    // ✨ 校正目标 chip 文本（1.47.0 开放编辑）：五项都打 sub 标记 —— 主下拉只出一颗「校正目标 ✨」入口，
-    // 选中后由二级下拉挑具体哪一个。builtin 从 FIX_TARGET_MODULES 现取（单一真相源，没改过的人随版本吃改进），
-    // 且【不含】那行【标签】头 —— 头由 compileFixTargets 程序加，用户只写内容。
-    // 覆盖非空 = 勾上该目标就整份恒发（Prince 2026-07-31 决定 1：整份替换），内置那套「第二段按依据门控」不再适用。
-    { id: 'fixtgt_slop',      label: '校正目标 · AI 八股 / 套话 ✨',     key: 'fixTargetSlopPrompt',      sub: 'fixtargets',
-      builtin: FIX_TARGET_MODULES.slop.t1 + '\n' + FIX_TARGET_MODULES.slop.t2,         note: fixTargetEditNote(true) },
-    { id: 'fixtgt_dialogue',  label: '校正目标 · 对话机械 / 不自然 ✨',   key: 'fixTargetDialoguePrompt',  sub: 'fixtargets',
-      builtin: FIX_TARGET_MODULES.dialogue.t1 + '\n' + FIX_TARGET_MODULES.dialogue.t2, note: fixTargetEditNote(true) },
-    { id: 'fixtgt_precision', label: '校正目标 · 过度精确（数学论文腔）✨', key: 'fixTargetPrecisionPrompt', sub: 'fixtargets',
-      builtin: FIX_TARGET_MODULES.precision.t1,                                        note: fixTargetEditNote(false) },
-    { id: 'fixtgt_magic',     label: '校正目标 · 魔法被写成理科 ✨',     key: 'fixTargetMagicPrompt',     sub: 'fixtargets',
-      builtin: FIX_TARGET_MODULES.magic.t1 + '\n' + FIX_TARGET_MODULES.magic.t2,       note: fixTargetEditNote(true) },
-    { id: 'fixtgt_pacing',    label: '校正目标 · 描写拖沓 / 流水账 ✨',   key: 'fixTargetPacingPrompt',    sub: 'fixtargets',
-      builtin: FIX_TARGET_MODULES.pacing.t1,                                           note: fixTargetEditNote(false) },
-];
-
 const defaults = {
     mode: 'direct',            // 'direct' | 'profile'
     // direct mode
@@ -2173,12 +2124,12 @@ const defaults = {
     // 锻造 16384 / 扫描 16384 / 下一拍建议 4096 / 人格扩写 4096…）都是 Math.max(s.maxTokens, N)，不受这次改动影响。
     maxTokens: 12288,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    // 诊断 / 世界书 / 剧情参谋 模式的系统提示词【覆盖】。空串 = 用内置默认（见 SYSPROMPT_MODES）。
-    // 参谋自 1.17.7 起也可编辑（毕业进 SYSPROMPT_MODES；仅单拍参谋指令，不含弧线编译器）。
+    // 诊断 / 世界书 / 剧情参谋 模式的系统提示词【覆盖】。空串 = 用内置默认。
+    // 二创版起由提示词注册表（PROMPT_DEFS 的 legacy 键）读写，键名与原版一致、双向兼容。
     diagnoseSystemPrompt: '',
     lorebookSystemPrompt: '',
     advisorSystemPrompt: '',
-    // ✨ 自动校正提示词覆盖（1.46.0）：轻校 / 精校（空 = 内置；精校覆盖对两种侧重都生效）。
+    // ✨ 自动校正提示词覆盖（1.46.0）：轻校 / 精校（空 = 内置；精校覆盖在 Opus 侧重没单独改时对两种侧重都生效）。
     fixLightSystemPrompt: '',
     fixThoroughSystemPrompt: '',
     // ✨ 校正目标 chip 文本覆盖（1.47.0，Prince 决定 1：整份替换、勾上即恒发；【标签】头程序自动加）。
@@ -4300,10 +4251,7 @@ async function buildLorebookContext() {
             if (c && c !== '{{char}}') pairs.push(`{{char}} = 「${c}」`);
         } catch (e) { /* no ctx — skip the name mapping, keep the literal-macro note */ }
         const names = pairs.length ? `当前 ${pairs.join('、')}。` : '';
-        lbContextText = '（说明：下列条目正文按【原样】显示，含 {{user}}、{{char}} 等宏，未做替换。' + names +
-            '聊天作答可用真名以便阅读；但【编辑】时，anchor 锚点与 replace / content 正文都必须照抄字面的 ' +
-            '{{user}} / {{char}} 等宏，不要替换成真名——否则锚点对不上当前存储，还会把名字写死进世界书。）\n\n' +
-            lbContextText;
+        lbContextText = P('lb.macroLegend', { names }, s) + '\n\n' + lbContextText;
     }
 }
 
@@ -4337,7 +4285,7 @@ async function buildBuilderContext() {
     bldScanWiText = await buildBldScanWiText(s);   // opt-in（bldScanWi 关时空串）
     // 宏未替换说明：两块（选条目 + 关键词命中）合并判定，注在第一块非空块头上（原样投喂共同的说明）。
     if ((bldContextText + bldScanWiText).indexOf('{{') !== -1) {
-        const macroNote = '（说明：以下条目按原样显示，{{user}}/{{char}} 等宏未替换；写草稿时可以按当前故事用真名。）\n\n';
+        const macroNote = P('bld.macroNote', null, s) + '\n\n';
         if (bldContextText) bldContextText = macroNote + bldContextText;
         else bldScanWiText = macroNote + bldScanWiText;
     }
@@ -4379,8 +4327,8 @@ async function buildBldScanWiText(s) {
 // 让「应用剧情正则」自动生效——绝不原地改 s（引用稳定性）。
 function buildBuilderPrompt(ctx, s) {
     const variantKey = builderVariantKey(s);
-    const parts = [builderInterviewPromptFor(variantKey), BUILDER_PROTOCOL];
-    parts.push(`【当前目标】${builderTargetLabel(s)}`);
+    const parts = [builderInterviewPromptFor(variantKey), P('bld.protocol', null, s)];
+    parts.push(P('bld.target', { target: builderTargetLabel(s) }, s));
     parts.push(builderSectionsLine(s));
     // 外貌必问行只进访谈（锻造有自己的 look 块）；未勾外貌时行不存在 = 物理门控。
     const lookAsk = builderLookAskLine(s);
@@ -4391,9 +4339,9 @@ function buildBuilderPrompt(ctx, s) {
     // 访谈阶段（无草稿）此块为空 = filter(Boolean) 滤掉，行为不变。
     parts.push(builderDraftRefBlock(getBuilderState()?.draft));
     parts.push(buildCardSection(ctx));
-    if (bldContextText) parts.push('=== 世界书 / 设定（找找有没有专门规定「角色如何生成」的条目——命名规则、种族限制、数值模板、格式规定；有就必须遵守）===\n' + bldContextText);
-    if (bldScanWiText) parts.push('=== 世界书 · 关键词命中（参考补充——聊天里提到的相关设定）===\n' + bldScanWiText);
-    if (bldStatData) parts.push('=== 当前变量状态（stat_data）===\n' + bldStatData);
+    if (bldContextText) parts.push(P('bld.wi', { wi: bldContextText }, s));
+    if (bldScanWiText) parts.push(P('bld.scanWi', { wi: bldScanWiText }, s));
+    if (bldStatData) parts.push(P('bld.stat', { stat: bldStatData }, s));
     if (s.bldIncludeSummary) {
         const sum = buildSummarySection(getSummary());
         if (sum) parts.push(sum);
@@ -4403,7 +4351,7 @@ function buildBuilderPrompt(ctx, s) {
         if (lwb) parts.push(lwb);
     }
     const transcript = buildTranscript(ctx, { ...s, contextDepth: s.bldDepth });
-    if (transcript) parts.push('=== 故事对话记录（最新的在最后）===\n' + transcript);
+    if (transcript) parts.push(P('bld.transcript', { transcript }, s));
     return parts.filter(Boolean).join('\n\n');
 }
 
@@ -4416,14 +4364,14 @@ function buildForgeMessages(ctx, s, brief) {
     const variantKey = builderVariantKey(s);
     const v = BUILDER_VARIANTS[variantKey];
     const gatedForge = gateForgePrompt(builderForgePromptFor(variantKey), builderSelectedSections(s).map((x) => x.id), v.chipHeaders, v.assemblyOrder, v.assemblyTail);
-    const parts = [gatedForge, BUILDER_PROTOCOL];
-    parts.push(`【当前目标】${builderTargetLabel(s)}`);
+    const parts = [gatedForge, P('bld.protocol', null, s)];
+    parts.push(P('bld.target', { target: builderTargetLabel(s) }, s));
     parts.push(builderSectionsLine(s));
-    if (s.bldDlgRich) parts.push(DLG_RICH_RIDER);
+    if (s.bldDlgRich) parts.push(P('bld.dlgRich', null, s));
     parts.push(buildCardSection(ctx));
-    if (bldContextText) parts.push('=== 世界书 / 设定 ===\n' + bldContextText);
-    if (bldScanWiText) parts.push('=== 世界书 · 关键词命中（参考补充）===\n' + bldScanWiText);
-    if (bldStatData) parts.push('=== 当前变量状态（stat_data）===\n' + bldStatData);
+    if (bldContextText) parts.push(P('bld.forgeWi', { wi: bldContextText }, s));
+    if (bldScanWiText) parts.push(P('bld.forgeScanWi', { wi: bldScanWiText }, s));
+    if (bldStatData) parts.push(P('bld.stat', { stat: bldStatData }, s));
     if (s.bldIncludeSummary) {
         const sum = buildSummarySection(getSummary());
         if (sum) parts.push(sum);
@@ -4433,10 +4381,10 @@ function buildForgeMessages(ctx, s, brief) {
         if (lwb) parts.push(lwb);
     }
     const transcript = buildTranscript(ctx, { ...s, contextDepth: s.bldDepth });
-    if (transcript) parts.push('=== 故事对话记录（最新的在最后）===\n' + transcript);
+    if (transcript) parts.push(P('bld.transcript', { transcript }, s));
     return [
         { role: 'system', content: parts.filter(Boolean).join('\n\n') },
-        { role: 'user', content: '按工序锻造这个角色：\n\n' + brief.raw },
+        { role: 'user', content: P('bld.forgeAsk', { brief: brief.raw }, s) },
     ];
 }
 
@@ -4987,7 +4935,7 @@ function lbResolveSelectPlan(selects, books, currentSel) {
 // 喂给模型的指令提示词（家规：中文用户面、English identifiers；下方为一次性组装）。首次调用 = 指令 + 目录；
 // 续发 = 再拼上此前引擎回包。personas 不参与、不走预设——由调用方经 soCallModel 直发（同 persona 扩写一次性调用）。
 function buildSmartSelectMessages(userCommand, catalog, priorResults) {
-    const sys = LB_SMART_SELECT_PROMPT + '\n\n' + String(catalog || '') + (priorResults ? '\n\n' + String(priorResults) : '');
+    const sys = P('lb.smartSelect') + '\n\n' + String(catalog || '') + (priorResults ? '\n\n' + String(priorResults) : '');
     return [
         { role: 'system', content: sys },
         { role: 'user', content: String(userCommand || '') },
@@ -5100,8 +5048,7 @@ function builderSelectedSections(s) {
 // 生成喂给锻造模型的中文提示行：列出本次草稿要覆盖的部分，并禁止生成 / 追问未列出的部分。
 function builderSectionsLine(s) {
     const labels = builderSelectedSections(s).map((x) => x.label);
-    const list = labels.length ? labels.join('、') : '（用户未勾选任何部分——只写一句话概括）';
-    return '本次草稿需要覆盖的部分：' + list + '。未列出的部分一律不要生成，也不要在访谈中追问。';
+    return P('bld.sections', { list: labels.join('、') });
 }
 
 // 访谈师「外貌素材·必问」（2026-07-08；验证收据 tests/unit/_bld-tuning/polish4/interview/）：
@@ -5112,7 +5059,7 @@ const BUILDER_LOOK_MUSTASK = '【外貌素材·必问】已有材料（用户描
 
 function builderLookAskLine(s) {
     if (builderVariantKey(s) !== 'card') return '';   // 外貌必问是 card 访谈的专属注入；persona 变体有自己的外貌话术
-    return builderSelectedSections(s).some((x) => x.id === 'appearance') ? BUILDER_LOOK_MUSTASK : '';
+    return builderSelectedSections(s).some((x) => x.id === 'appearance') ? P('bld.lookMustAsk', null, s) : '';
 }
 
 // —— chip 物理门控（lessons-pass ■ 块版；前身 #3 Tier 2 行前缀门控）：未勾的部分从锻造提示词里
@@ -6143,7 +6090,7 @@ function activeDraftContent(draft) {
 function builderDraftRefBlock(draft) {
     const content = activeDraftContent(draft);
     if (!content || !String(content).trim()) return '';
-    return '=== 当前草稿正文（权威·你正在修改的就是这一份；出 <DraftPatch> 时锚点务必从这里【逐字复制】，不要凭对话记忆或用户转述）===\n' + content;
+    return P('bld.draftRef', { draft: content });
 }
 function draftWithPatchedActive(draft, patchedText) {
     const d = { ...draft, content: patchedText };
@@ -7524,12 +7471,16 @@ function closeFixShare() {
 //       FIX_PROMPT_JINGXIAO_GEMINI，只改这一行的返回值即可（UI / 设置的 gemini 侧重已就位）。
 //   thorough + 其它 / 缺省       → FIX_PROMPT_JINGXIAO_DEEPSEEK（克制版，适合 DeepSeek / 国产模型）
 // 只有精确的 'thorough' 才是精校；null / '' / 未知一律回落轻校（迁移安全）。cfg 缺失也回落轻校，不抛。
-function resolveFixAutoPrompt(cfg) {
+// 二创版 2.0：三份都在提示词注册表里可改。精校的「DeepSeek / Gemini 侧重」那一条沿用原版旧键 fixThoroughSystemPrompt——
+// 原版语义是「一份覆盖两种侧重都用」，所以 Opus 侧重自己没改过、而 DeepSeek 那条改过时，Opus 也用改过的那份。
+function resolveFixAutoPrompt(cfg, s) {
     const c = cfg || {};
-    if (c.promptVersion !== 'thorough') return FIX_SYSTEM_PROMPT_TIGHTEN;
-    if (c.promptFlavor === 'opus') return FIX_PROMPT_JINGXIAO_OPUS;
-    if (c.promptFlavor === 'gemini') return FIX_PROMPT_JINGXIAO_DEEPSEEK;   // ← seam：将来换成 FIX_PROMPT_JINGXIAO_GEMINI
-    return FIX_PROMPT_JINGXIAO_DEEPSEEK;
+    const st = s || getSettings();
+    if (c.promptVersion !== 'thorough') return P('fix.light', null, st);
+    if (c.promptFlavor === 'opus' && (promptIsCustom('fix.thoroughOpus', st) || !promptIsCustom('fix.thorough', st))) {
+        return P('fix.thoroughOpus', null, st);
+    }
+    return P('fix.thorough', null, st);   // DeepSeek；Gemini 暂用同一份（← seam：将来换成专属一条）
 }
 
 // 读本聊天保存的校正覆盖（始终回对象，可能为空 {}）。喂给 getEffectiveFixCfg 当 md。
@@ -13681,12 +13632,8 @@ async function runAutoDiagnose(ctx, s, targetId, chatKey, compatSession, retrySt
     const deriveMode = !gate.executed && !gate.deadBlock;                // 乙（语义逐字不变）
     const systemPrompt = buildDiagnosePromptFrom(ctx, s, { wiBlock, statStr, latestBlock, latestReply, auto: true, derive: deriveMode, deadBlock: deadBlockMode });
     const userMsg = deadBlockMode
-        ? '【自动诊断】最新一条 AI 回复里【带有】一个变量更新区块，但它【没有生效】——格式坏损或写法引擎不认，MVU 这一回合一条指令都没有执行，当前状态【尚未】包含这条回复带来的变化。请充当变量更新引擎：通读这条回复，依本卡 MVU 规则与当前状态，重新推导出本回合应当发生的全部变量更新，输出一个 <UpdateVariable> 区块把状态更新到位。正文里那段坏掉的区块可以当线索参考，但请以剧情里确凿发生的事为准；若这条回复确实不涉及任何变量变化，则在 <JSONPatch> 里输出空数组（[]）。'
-        : (deriveMode
-        ? '【自动诊断】最新一条 AI 回复的正文里【没有】变量更新区块。请充当变量更新引擎：通读这条回复，依本卡 MVU 规则与当前状态，推导出本回合应当发生的全部变量更新，输出一个 <UpdateVariable> 区块把状态更新到位；若这条回复确实不涉及任何变量变化，则在 <JSONPatch> 里输出空数组（[]）。'
-        : (latestBlock
-            ? '【自动诊断】最新一条 AI 回复里带有变量更新区块。请按本卡 MVU 规则与当前状态核验它：有错就只输出一个修正后的 <UpdateVariable> 区块（仅含需改正的字段）；完全正确则在 <JSONPatch> 里输出空数组（[]）。'
-            : '【自动诊断】最新一条 AI 回复里【含有】变量更新区块，但它用的标签不是标准写法、系统没能单独摘出来。请从下方回复正文里自行找到那段更新并核验：有错就只输出一个修正后的 <UpdateVariable> 区块（仅含需改正的字段）；完全正确则在 <JSONPatch> 里输出空数组（[]）。它【已经生效】了——绝不要把这回合的变化重新推导一遍。'));
+        ? P('diag.askDead', null, s)
+        : (deriveMode ? P('diag.askDerive', null, s) : (latestBlock ? P('diag.askVerify', null, s) : P('diag.askUnparsed', null, s)));
     // 经自定义补全预设（1.43.0，opt-in s.diagnoseUsePreset）：破限 / 越狱用，形状同 runAutoFix。
     // ⚠ maybeWrapJb 的模式键必须是【字面量】'diagnose' —— 自动诊断在后台无头跑，触发时用户
     // 可能正坐在任何一个模式里，currentJbModeKey() 会读到那个模式的 flag、给出错误判定。
@@ -14458,29 +14405,7 @@ function mvuedFieldPathList(statData) {
 //      整块被丢；② 模型爱把 [值,"描述"] 对当数组、按 好感度.0 寻址 —— 那条路径核实不过、整条被丢弃，
 //      用户看到的是「扫描完成」却没有下拉框。两条都只能在提示词侧关死。
 function buildMvuedScanPrompt(rulesBlock, fieldPaths) {
-    return [
-        '你是一个数据抽取器。下面是某角色卡的 MVU 变量更新规则（写给别的模型看的自由文本），以及当前全部变量字段的路径清单。',
-        '任务：从规则文本里找出【对具体字段取值的硬性限制】——枚举值（某字段只能取哪几个值）与数值范围（min/max）。',
-        '只报告规则里【明确写出】的限制；没写的字段不要出现在结果里，绝不要猜。',
-        '另外：若字段清单里存在大量【不带任何分组前缀】的零散字段，可给出把它们按语义分组的建议（groups）；有结构前缀（如「角色状态.」）的字段不要分组。',
-        '',
-        '=== MVU 规则 ===',
-        String(rulesBlock || '（未找到规则）'),
-        '',
-        '=== 字段路径清单（dot 路径，枚举/范围只能挂在这些路径上）===',
-        (fieldPaths || []).join('\n'),
-        '',
-        '输出【只输出】一个 <MvuSchema> 块，内容是 JSON：',
-        '<MvuSchema>',
-        '{"fields":[{"path":"字段.路径","options":["值1","值2"]},{"path":"另一字段","min":0,"max":100}],"groups":[{"label":"分组名","paths":["零散字段1","零散字段2"]}]}',
-        '</MvuSchema>',
-        '没有任何可报告的限制时输出 <MvuSchema>{"fields":[],"groups":[]}</MvuSchema>。',
-        '',
-        '⚠ 输出纪律（不守则本次扫描作废）：',
-        '· 整个回复里【有且只有一个】 <MvuSchema> 块——系统只读第一个，后面再写的一律被丢弃。不要先给一版再给修订版，不要分块输出；想改就把最终结果直接写进那唯一的块里。',
-        '· 形如 [值,"描述"] 的字段，在上面的清单里已按【整对】给出一条路径；限制只能挂在那条【自身】路径上——写「好感度」，绝不要写「好感度.0」或「好感度[0]」。带下标的路径会被系统丢弃，该字段等于白扫。',
-        '· path 必须逐字节抄自上面的字段路径清单，不要自造、不要改写、不要只写末段。',
-    ].join('\n');
+    return P('mvued.scan', { rules: String(rulesBlock || ''), fields: (fieldPaths || []).join('\n') });
 }
 
 // 纯函数：拼一条「🎛 手动编辑」侧聊记录的正文（spec §7.6；仿 autoDiagNoteContent 的写法，不读时钟）。
@@ -15358,7 +15283,7 @@ async function runMvuedScan() {
         const sys = buildMvuedScanPrompt(wiBlock, mvuedFieldPathList(stat));
         const messages = [
             { role: 'system', content: sys },
-            { role: 'user', content: '请按上方要求输出 <MvuSchema> 块。' },
+            { role: 'user', content: P('mvued.scanAsk', null, s) },
         ];
         // 调试提示词查看器快照（同自动诊断：无头调用也必须能在「调试提示词」面板里看到发了什么）。
         lastPrompt = messages.map((m) => ({ role: m.role, content: m.content }));
@@ -17054,13 +16979,12 @@ function diagSchemaRetryMessage(dry) {
     const items = (dry && Array.isArray(dry.items)) ? dry.items : [];
     const bad = items.filter((i) => (i.verdict === 'zod-rejected' && !(i.detail && i.detail.blockedByOther))
         || i.verdict === 'not-extensible' || i.verdict === 'delta-target-not-number' || i.verdict === 'zod-stripped');
-    const lines = [`系统：上一份补丁里有 ${bad.length} 处这张卡不会接受，请只针对这几处改一版（其余保持不变）：`];
+    const lines = [];
     for (const it of bad) {
         const why = it.verdict === 'zod-stripped' ? '这张卡不允许在这里新增项，写进去也会被悄悄丢掉' : diagSchemaItemReason(it);
         lines.push(`· ${it.path}（${it.op}）：${why}`);
     }
-    lines.push('输出一份完整的新补丁（原来能通过的指令原样保留）。');
-    return lines.join('\n');
+    return P('diag.schemaRetry', { count: String(bad.length), items: lines.join('\n') });
 }
 
 // 写入口共用：给一块（已过修复流水线的）补丁做预演，回 { text: 只含能过的指令的补丁, dry } 或 null（照旧走）。
@@ -19022,7 +18946,7 @@ function buildWindow() {
                 </div>
                 <div class="so-set-section">
                     <div class="so-set-title"><i class="fa-solid fa-pen-to-square"></i>提示词<span class="so-set-title-aside" id="so-prompt-summary"></span></div>
-                    <div class="so-hint">普通聊天和剧情参谋发给模型的每一段文字都在这里。先选分组，再点条目查看或修改；改过的会标出来，随时可以恢复默认。</div>
+                    <div class="so-hint">神谕各模式发给模型的每一段文字都在这里。先选分组，再点条目查看或修改；改过的会标出来，随时可以恢复默认。</div>
                     <div class="so-pgroups" id="so-pgroups"></div>
                     <div class="so-plist" id="so-plist"></div>
                     <div class="so-peditor" id="so-peditor" hidden>
@@ -21066,20 +20990,7 @@ function maybeWrapJb(messages, mode, s) {
     return modeWantsJb(st, mode) ? wrapBuiltinJb(messages, getCtx()) : messages;
 }
 
-// Look up a system-prompt mode definition (falls back to chat for unknown ids,
-// including 'advisor' — not user-editable yet).
-function sysPromptModeDef(id) {
-    return SYSPROMPT_MODES.find((m) => m.id === id) || SYSPROMPT_MODES[0];
-}
 
-// The effective prompt for a mode: the user's override when non-empty, else the
-// built-in default. (chat's key always holds text, so the fallback only matters
-// for diagnose / lorebook, whose overrides start empty.)
-function resolveModePrompt(s, id) {
-    const def = sysPromptModeDef(id);
-    const v = s[def.key];
-    return (typeof v === 'string' && v.trim() !== '') ? v : def.builtin;
-}
 
 
 function populateSysPromptPresets() {
@@ -22300,8 +22211,8 @@ async function runCondense(opts = {}) {
     // 气泡，像「又在重新生成」。手动路径不用——按钮是用户自己点的。
     if (opts.auto) modeEntryNote('✂️ 自动精简启动（设置里开着「锻造后自动精简」）——正在精简这份草稿；点 ⏹ 可中断，中断/失败都不影响原稿。');
     const messages = [
-        { role: 'system', content: CONDENSE_STAGE_PROMPTS.light },
-        { role: 'user', content: `请按系统规则精简下面这张角色卡正文。\n【原稿开始】\n${rawC}\n【原稿结束】` },
+        { role: 'system', content: P('bld.condense', null, s) },
+        { role: 'user', content: P('bld.condenseAsk', { draft: rawC }, s) },
     ];
     lastPrompt = messages.map((m) => ({ role: m.role, content: m.content }));
     lastPromptMeta = { mode: '工坊精简', target: s.mode === 'direct' ? (s.model || '直连') : '配置文件', chars: rawC.length, time: new Date().toLocaleTimeString() };
@@ -22436,13 +22347,13 @@ async function runCondenseDepth() {
         if (convoStreamKey === myRun.streamKey) condenseFailNote({}, code, msg);
     };
     try {
-        const sectUser = (g) => `【全卡参考（只读，供查重，不要输出）】\n${rawC}\n\n【你负责精简的节】${g.names.join('、')}\n【这些节的原文】\n${g.text}`;
+        const sectUser = (g) => P('bld.condenseSectAsk', { full: rawC, names: g.names.join('、'), text: g.text }, s);
         // 恒串行：3 份分节一份接一份跑，每份把流实时铺进气泡；每份各续一份看门狗预算。
         const partReplies = [];
         for (let i = 0; i < groups.length; i++) {
             setStreamingCls(true);
             armDepthWatchdog();
-            partReplies.push(await callOnce(CONDENSE_STAGE_PROMPTS.sect, sectUser(groups[i]), streamInto(`✂️✂️ 深度精简（串行·流式）分节 ${i + 1}/3：\n\n`)));
+            partReplies.push(await callOnce(P('bld.condenseSect', null, s), sectUser(groups[i]), streamInto(`✂️✂️ 深度精简（串行·流式）分节 ${i + 1}/3：\n\n`)));
             setStreamingCls(false);
         }
         if (liveCondense !== myRun) return;   // 切聊天已由 onChatChanged 中断注销——这条属于旧聊天，丢弃
@@ -22454,7 +22365,7 @@ async function runCondenseDepth() {
         if (!asm.content) { failFinish('assemble', asm.error); return; }
         armDepthWatchdog();   // 手术单阶段自带一份新预算
         setStreamingCls(true);
-        const opsReply = await callOnce(CONDENSE_STAGE_PROMPTS.ops, `请为下面这张角色卡正文开删减手术单。\n【正文开始】\n${asm.content}\n【正文结束】`, streamInto('✂️✂️ 手术单（串行·流式）：\n\n'));
+        const opsReply = await callOnce(P('bld.condenseOps', null, s), P('bld.condenseOpsAsk', { draft: asm.content }, s), streamInto('✂️✂️ 手术单（串行·流式）：\n\n'));
         setStreamingCls(false);
         if (liveCondense !== myRun) return;   // 手术单期间切了聊天 → 同上丢弃（身份校验在 setBuilderState 之前）
         const { ops } = parseCondenseOps(String(opsReply || ''));
@@ -25711,7 +25622,7 @@ function wrapTranscriptEnvelope(transcript) {
 }
 
 /* ------------------------------------------------------------------ *
- * 提示词注册表（精简版 1.0.0）—— 普通聊天 / 剧情参谋实际发给模型的每一段文字都在这里登记，
+ * 提示词注册表（精简版 1.0.0；二创版 2.0.0 扩到全部模式）—— 各模式实际发给模型的每一段文字都在这里登记，
  * 设置面板「提示词」下拉里逐条可看、可改、可一键恢复默认。
  *
  * · 读取一律走 P(id, vars)：有用户覆盖就用覆盖，否则用内置文本，再按 vars 渲染模板。
@@ -25722,9 +25633,12 @@ function wrapTranscriptEnvelope(transcript) {
  *     发生过删行 / 删段时，连续的空行压成一个，首尾空行去掉。
  *   这些都在【代入之前】对模板本身做，代入只扫一遍——代入的内容（角色卡、对话记录……）一个字都不会被改。
  *   代入之后，各调用点照旧做 substituteParams（{{user}} 等酒馆宏），顺序与原版相同。
- * · 覆盖存在 settings.promptOverrides[id]（'' 也算覆盖）。原版留下的三个旧键直接读写、不做迁移，
- *   与原版保持双向兼容：systemPrompt（普通聊天，存全文）、advisorSystemPrompt（参谋，'' = 内置）、
+ * · 覆盖存在 settings.promptOverrides[id]（'' 也算覆盖）。原版留下的旧键直接读写、不做迁移，
+ *   与原版保持双向兼容：systemPrompt（普通聊天，存全文）、advisorSystemPrompt / diagnoseSystemPrompt /
+ *   lorebookSystemPrompt / fixLightSystemPrompt / fixThoroughSystemPrompt / fixTarget*Prompt（'' = 内置）、
  *   nextBeatTemplate（下一拍选项写法，null = 内置、'' = 用户清空）。
+ * · 数据排版（世界书条目清单、校正信封的 <characters> 等标签、补丁回执行）不登记：它们和提示词里的
+ *   格式说明一一对应，改了反而对不上。
  * · desc：一句话说明这段文字什么时候发、给谁看（设置「提示词」页的条目列表里显示）。
  * · vars：这条模板能用的变量（编辑器里列出来）；required：缺了引导 / 解析会失效的变量；
  *   contract：程序要解析的字面量（格式契约）。缺 required / contract，编辑器提示行标红。
@@ -25747,9 +25661,121 @@ const PROMPT_DEFS = [
     { id: 'chat.statOff', group: '普通聊天', label: '变量状态段（没有数据时）',
         desc: '没有变量数据时附上，要求模型如实说看不到、不要编数值。',
         builtin: '（注意：你看不到实时变量数值（好感度、金钱等状态数据）。用户问具体数值时，如实说明无法查看精确数值，'
-            + '建议切到剧情参谋模式查询（参谋会读取变量状态）；可以根据剧情做定性判断（关系变暖 / 资源吃紧），但绝不要编造具体数字。）' },
+            + '建议用诊断或剧情参谋模式查询（它们会读取变量状态）；可以根据剧情做定性判断（关系变暖 / 资源吃紧），但绝不要编造具体数字。）' },
     { id: 'chat.presetEmpty', group: '普通聊天', label: '补全预设整理后为空时的占位',
         desc: '补全预设挑完什么都没剩时，用这句话代替。', builtin: '（预设无可用内容）' },
+
+    // —— 诊断 ——
+    { id: 'diag.system', group: '诊断', label: '系统提示词',
+        desc: '手动诊断与自动诊断共用的主指令：怎么核对 MVU 变量、怎么输出修正补丁。', builtin: DIAGNOSE_SYSTEM_PROMPT,
+        legacy: { key: 'diagnoseSystemPrompt', kind: 'override' }, contract: ['<UpdateVariable>', '<JSONPatch>'],
+        note: '<UpdateVariable> / <JSONPatch> 区块的格式是解析契约：改坏了，补丁就应用不上。' },
+    { id: 'diag.autoVerify', group: '诊断', label: '自动诊断附则 · 回复自带更新（核验）',
+        desc: '自动诊断时，回复里的变量更新已经生效：只核验、最小化修正，不要把这回合重算一遍。',
+        builtin: '【自动诊断模式 —— 重要】这是一次后台自动诊断。这条 AI 回复【自带】变量更新，且它【已经生效】——当前状态就是该更新应用之后的结果。你的任务只是【核验并最小化修正】它（仍以当前状态为事实依据）。\n'
+                + '【绝对不要】把这回合的变化重新推导、重新计算一遍：那些增减（花掉的钱、涨的好感度、推进的时间……）都已经算进当前状态了，再补一次就会把同一笔算两遍。只在当前状态里能指出【具体错值】时才出补丁。\n'
+                + '遵循下方输出规则；没有缺陷时输出空的 JSONPatch（[]）。' },
+    { id: 'diag.autoDerive', group: '诊断', label: '自动诊断附则 · 回复里没有更新（推导）',
+        desc: '自动诊断时，回复里没有变量更新区块：让模型充当变量更新引擎，从正文推导本回合的更新。',
+        builtin: '【自动诊断模式 —— 重要】这是一次后台自动诊断，时机是一条新 AI 回复刚到，而这条回复的正文里【没有】任何变量更新区块：说明本回合的变量更新【还没有】被写入，当前状态【尚未】包含这条回复带来的变化。请你充当变量更新引擎——通读这段回复，依角色卡 MVU 规则与当前状态，推导出本回合【应当】发生的全部变量更新（好感度增减、物品获得 / 消耗、时间推进、地点 / 状态变化……），生成 <UpdateVariable> 补丁把状态更新到这条回复之后的正确值。只依据回复里确凿发生的事，绝不脑补没写的细节。\n'
+                + '遵循下方输出规则；确实没有任何变量需要变动时，输出空的 JSONPatch（[]）。' },
+    { id: 'diag.autoDead', group: '诊断', label: '自动诊断附则 · 更新区块没生效（重推）',
+        desc: '自动诊断时，回复里有更新区块但格式坏了、一条都没执行：让模型重新推导本回合的更新。',
+        builtin: '【自动诊断模式 —— 重要】这是一次后台自动诊断，时机是一条新 AI 回复刚到。这条回复的正文里【带有】一个变量更新区块，但那个区块【没有生效】——它的格式坏了（缺闭合标签／写法引擎不认／指令本身落不了地），变量引擎这一回合一条指令都没有执行，当前状态【尚未】包含这条回复带来的变化。请你充当变量更新引擎——通读这段回复，依角色卡 MVU 规则与当前状态，重新推导出本回合【应当】发生的全部变量更新（好感度增减、物品获得 / 消耗、时间推进、地点 / 状态变化……），生成 <UpdateVariable> 补丁把状态更新到这条回复之后的正确值。\n'
+                + '正文里那段坏掉的区块可以当【线索】参考（它写了什么、想改哪些字段），但不要照抄它的路径与写法——以剧情里确凿发生的事、以及当前状态里真实存在的字段为准，绝不脑补没写的细节。\n'
+                + '遵循下方输出规则；确实没有任何变量需要变动时，输出空的 JSONPatch（[]）。' },
+    { id: 'diag.rules', group: '诊断', label: '世界书规则段',
+        desc: '角色卡的 MVU 变量规则（来自世界书）；一条规则都没找到时用后半句代替。',
+        builtin: '=== 角色卡 MVU 规则（来自世界书）===\n{%#wi%}{%wi%}{%/wi%}{%^wi%}（未找到世界书规则 —— 诊断结果可能不完整）{%/wi%}',
+        vars: { wi: '世界书里的规则条目' } },
+    { id: 'diag.stat', group: '诊断', label: '变量状态段',
+        desc: '当前的变量状态（stat_data）；读不到 MVU 时用后半句代替。',
+        builtin: '=== 当前变量状态（stat_data）===\n{%#stat%}{%stat%}{%/stat%}{%^stat%}（不可用 —— 未检测到 MVU 框架）{%/stat%}',
+        vars: { stat: '当前变量状态（stat_data）JSON' },
+        note: '这一段按原样发送、不展开 {{user}} 等宏（补丁要对准字面数据）；下面几条「…段」同理。' },
+    { id: 'diag.latestBlock', group: '诊断', label: '「待检查的更新」段（摘到了更新区块）',
+        desc: '最新回复里摘出的 <UpdateVariable> 区块，交给模型核对。',
+        builtin: '=== 最新更新区块（待检查的更新）===\n{%block%}', vars: { block: '最新回复里的更新区块' }, required: ['block'] },
+    { id: 'diag.latestNone', group: '诊断', label: '「待检查的更新」段（没找到更新区块）',
+        desc: '最新回复里没有更新区块时放的那一段。',
+        builtin: '=== 最新更新区块（待检查的更新）===\n（在最新一条 AI 回复中未找到 <UpdateVariable> 区块）' },
+    { id: 'diag.latestDerive', group: '诊断', label: '自动诊断 · 回复正文段（没有更新区块）',
+        desc: '自动诊断推导时，把整条回复正文交给模型。',
+        builtin: '=== 最新一条 AI 回复（正文里【没有】变量更新区块——请据这段剧情、依 MVU 规则与当前状态，推导出本回合应当发生的全部变量更新）===\n' + '{%reply%}', vars: { reply: '最新一条 AI 回复正文' }, required: ['reply'] },
+    { id: 'diag.latestUnparsed', group: '诊断', label: '自动诊断 · 回复正文段（更新区块没摘出来）',
+        desc: '回复里有更新、但标签不标准没能单独摘出时，把整条回复交给模型自己找。',
+        builtin: '=== 最新一条 AI 回复（其中【含有】变量更新区块，但用的不是标准标签、系统未能单独摘出——请自行从中找出那段更新并核验。它已经生效，当前状态已包含它，切勿重新推导一遍）===\n' + '{%reply%}', vars: { reply: '最新一条 AI 回复正文' }, required: ['reply'] },
+    { id: 'diag.latestDead', group: '诊断', label: '自动诊断 · 回复正文段（更新区块没生效）',
+        desc: '回复里的更新区块坏了、一条都没执行时，把整条回复交给模型重推。',
+        builtin: '=== 最新一条 AI 回复（其中那段变量更新区块【没有生效】——格式坏损，变量引擎这一回合一条指令都没执行；请据这段剧情、依 MVU 规则与当前状态，重新推导出本回合应当发生的全部变量更新）===\n' + '{%reply%}', vars: { reply: '最新一条 AI 回复正文' }, required: ['reply'] },
+    { id: 'diag.transcript', group: '诊断', label: '故事对话记录段',
+        desc: '最近的主聊天记录（诊断保留更新区块原样）。',
+        builtin: '=== 故事对话记录（最新的在最后）===\n{%transcript%}', vars: { transcript: '最近的主聊天记录' }, required: ['transcript'] },
+    { id: 'diag.askVerify', group: '诊断', label: '自动诊断请求 · 核验更新区块',
+        desc: '自动诊断替你发给模型的那句话（回复里摘到了更新区块时）。', builtin: '【自动诊断】最新一条 AI 回复里带有变量更新区块。请按本卡 MVU 规则与当前状态核验它：有错就只输出一个修正后的 <UpdateVariable> 区块（仅含需改正的字段）；完全正确则在 <JSONPatch> 里输出空数组（[]）。' },
+    { id: 'diag.askUnparsed', group: '诊断', label: '自动诊断请求 · 核验没摘出来的更新',
+        desc: '自动诊断替你发给模型的那句话（回复里有更新、但标签不标准时）。', builtin: '【自动诊断】最新一条 AI 回复里【含有】变量更新区块，但它用的标签不是标准写法、系统没能单独摘出来。请从下方回复正文里自行找到那段更新并核验：有错就只输出一个修正后的 <UpdateVariable> 区块（仅含需改正的字段）；完全正确则在 <JSONPatch> 里输出空数组（[]）。它【已经生效】了——绝不要把这回合的变化重新推导一遍。' },
+    { id: 'diag.askDerive', group: '诊断', label: '自动诊断请求 · 推导本回合更新',
+        desc: '自动诊断替你发给模型的那句话（回复里没有更新区块时）。', builtin: '【自动诊断】最新一条 AI 回复的正文里【没有】变量更新区块。请充当变量更新引擎：通读这条回复，依本卡 MVU 规则与当前状态，推导出本回合应当发生的全部变量更新，输出一个 <UpdateVariable> 区块把状态更新到位；若这条回复确实不涉及任何变量变化，则在 <JSONPatch> 里输出空数组（[]）。' },
+    { id: 'diag.askDead', group: '诊断', label: '自动诊断请求 · 重推坏掉的更新',
+        desc: '自动诊断替你发给模型的那句话（回复里的更新区块没生效时）。', builtin: '【自动诊断】最新一条 AI 回复里【带有】一个变量更新区块，但它【没有生效】——格式坏损或写法引擎不认，MVU 这一回合一条指令都没有执行，当前状态【尚未】包含这条回复带来的变化。请充当变量更新引擎：通读这条回复，依本卡 MVU 规则与当前状态，重新推导出本回合应当发生的全部变量更新，输出一个 <UpdateVariable> 区块把状态更新到位。正文里那段坏掉的区块可以当线索参考，但请以剧情里确凿发生的事为准；若这条回复确实不涉及任何变量变化，则在 <JSONPatch> 里输出空数组（[]）。' },
+    { id: 'diag.schemaRetry', group: '诊断', label: '卡片规则拒绝后的重写请求',
+        desc: '补丁里有这张卡不接受的指令时（「被拒时让模型自动重写一次」开着），带着原因让模型重写一次。',
+        builtin: '系统：上一份补丁里有 {%count%} 处这张卡不会接受，请只针对这几处改一版（其余保持不变）：\n{%items%}\n输出一份完整的新补丁（原来能通过的指令原样保留）。',
+        vars: { count: '被拒的指令数', items: '逐条列出：路径（操作）：原因' }, required: ['items'] },
+    { id: 'mvued.scan', group: '诊断', label: '变量编辑器 · 分析取值规则',
+        desc: '🎛 变量编辑器「分析取值规则」时，让模型从 MVU 规则里抽出枚举值和数值范围。',
+        builtin: [
+        '你是一个数据抽取器。下面是某角色卡的 MVU 变量更新规则（写给别的模型看的自由文本），以及当前全部变量字段的路径清单。',
+        '任务：从规则文本里找出【对具体字段取值的硬性限制】——枚举值（某字段只能取哪几个值）与数值范围（min/max）。',
+        '只报告规则里【明确写出】的限制；没写的字段不要出现在结果里，绝不要猜。',
+        '另外：若字段清单里存在大量【不带任何分组前缀】的零散字段，可给出把它们按语义分组的建议（groups）；有结构前缀（如「角色状态.」）的字段不要分组。',
+        '',
+        '=== MVU 规则 ===',
+        '{%#rules%}{%rules%}{%/rules%}{%^rules%}（未找到规则）{%/rules%}',
+        '',
+        '=== 字段路径清单（dot 路径，枚举/范围只能挂在这些路径上）===',
+        '{%fields%}',
+        '',
+        '输出【只输出】一个 <MvuSchema> 块，内容是 JSON：',
+        '<MvuSchema>',
+        '{"fields":[{"path":"字段.路径","options":["值1","值2"]},{"path":"另一字段","min":0,"max":100}],"groups":[{"label":"分组名","paths":["零散字段1","零散字段2"]}]}',
+        '</MvuSchema>',
+        '没有任何可报告的限制时输出 <MvuSchema>{"fields":[],"groups":[]}</MvuSchema>。',
+        '',
+        '⚠ 输出纪律（不守则本次扫描作废）：',
+        '· 整个回复里【有且只有一个】 <MvuSchema> 块——系统只读第一个，后面再写的一律被丢弃。不要先给一版再给修订版，不要分块输出；想改就把最终结果直接写进那唯一的块里。',
+        '· 形如 [值,"描述"] 的字段，在上面的清单里已按【整对】给出一条路径；限制只能挂在那条【自身】路径上——写「好感度」，绝不要写「好感度.0」或「好感度[0]」。带下标的路径会被系统丢弃，该字段等于白扫。',
+        '· path 必须逐字节抄自上面的字段路径清单，不要自造、不要改写、不要只写末段。',
+        ].join('\n'),
+        vars: { rules: 'MVU 规则（世界书）', fields: '全部变量字段的路径清单' }, required: ['fields'], contract: ['<MvuSchema>'],
+        note: '<MvuSchema> 区块的 JSON 格式是解析契约。' },
+    { id: 'mvued.scanAsk', group: '诊断', label: '变量编辑器 · 分析请求',
+        desc: '「分析取值规则」时替你发出的那句话。', builtin: '请按上方要求输出 <MvuSchema> 块。' },
+
+    // —— 世界书 ——
+    { id: 'lb.system', group: '世界书', label: '系统提示词（世界书管家）',
+        desc: '世界书模式的主指令：怎么读条目、怎么用 <LorebookEdit> 区块提出改动。', builtin: LOREBOOK_SYSTEM_PROMPT,
+        legacy: { key: 'lorebookSystemPrompt', kind: 'override' }, contract: ['<LorebookEdit>'],
+        note: '<LorebookEdit> 区块的格式是解析契约：改坏了，改动就应用不上。世界书模式不展开 {{user}} 等宏（条目正文要逐字对上锚点）。' },
+    { id: 'lb.macroLegend', group: '世界书', label: '宏说明（条目里有 {{user}} 等宏时）',
+        desc: '条目按原样显示、含 {{user}} 等宏时，放在书正文最前面的说明。',
+        builtin: '（说明：下列条目正文按【原样】显示，含 {{user}}、{{char}} 等宏，未做替换。' + '{%#names%}{%names%}{%/names%}' +
+            '聊天作答可用真名以便阅读；但【编辑】时，anchor 锚点与 replace / content 正文都必须照抄字面的 ' +
+            '{{user}} / {{char}} 等宏，不要替换成真名——否则锚点对不上当前存储，还会把名字写死进世界书。）\n\n',
+        vars: { names: '当前宏对应的名字（如「当前 {{user}} = 「小明」。」；读不到时为空）' } },
+    { id: 'lb.transcript', group: '世界书', label: '最近剧情对话段',
+        desc: '勾了「同时带上最近剧情对话」时附上的主聊天记录。',
+        builtin: '=== 最近的故事对话记录（仅供参考，最新的在最后）===\n{%transcript%}', vars: { transcript: '最近的主聊天记录' }, required: ['transcript'] },
+    { id: 'lb.snapshot', group: '世界书', label: '世界书快照外壳',
+        desc: '每次发送都附在最末尾的世界书快照：版本号、上次应用结果、书正文。',
+        builtin: '════ 世界书快照 · 第 {%serial%} 版（每次发送自动重读，唯一权威）════\n'
+            + '{%#applied%}〔上次应用结果〕（仅最近一次）\n{%applied%}\n────\n{%/applied%}{%book%}\n'
+            + '════ 快照结束 · 校验与锚点只能从本快照逐字复制 ════',
+        vars: { serial: '快照版本号', applied: '上次应用结果（逐条；没有时整段省略）', book: '世界书正文（含宏说明）' }, required: ['book'] },
+    { id: 'lb.smartSelect', group: '世界书', label: '🪄 智能选条',
+        desc: '「🪄 智能选条」时的指令：怎么看目录、怎么搜、怎么给出勾选计划。', builtin: LB_SMART_SELECT_PROMPT,
+        contract: ['<LorebookSelect>'], note: '<LorebookSearch> / <LorebookFetch> / <LorebookSelect> 三种区块是解析契约。' },
 
     // —— 剧情参谋 ——
     { id: 'advisor.system', group: '剧情参谋', label: '系统提示词',
@@ -25856,7 +25882,169 @@ const PROMPT_DEFS = [
     { id: 'nbeat.wiCap', group: '下一拍建议', label: '世界书过长被截断时的提示',
         desc: '世界书太长被截断时补在末尾的一句。', builtin: '（……其余条目从略）' },
 
-    // —— 上下文段落（普通聊天与参谋共用）——
+    // —— 校正 ——
+    { id: 'fix.manual', group: '校正', label: '手动校正 · 系统提示词',
+        desc: '手动校正（在输入框直接说要改哪里）的主指令。', builtin: FIX_SYSTEM_PROMPT_MANUAL,
+        contract: ['<FixedReply>'], note: '<FixedReply> 区块是解析契约：改坏了，校正稿就收不下来。' },
+    { id: 'fix.structuralNote', group: '校正', label: '手动校正 · 结构块保留叮嘱',
+        desc: '附在手动校正指令后面：状态栏、选项菜单等结构块默认原样保留，用户点名要改的除外。',
+        builtin: '【结构块保留】这条回复里可能夹着非叙事的结构块——状态栏、[方括号]标记、HTML / XML 区块、选项菜单、'
+        + '图片生成提示等。默认把它们连同内部内容【原样逐字保留】，不要改写、精简、翻译或删除，也不要改动其位置。'
+        + '【例外·用户指令优先】若用户的修改要求明确指向某个结构块内部的内容，则以用户要求为准、按要求改那一处；'
+        + '其余结构块仍原样保留。' },
+    { id: 'fix.forward', group: '校正', label: '手动校正 · 记号前推版',
+        desc: '手动整篇校正走「记号前推」时的主指令（正文每行带 ⟦记号⟧，原样的行只写记号）。', builtin: FIX_FORWARD_PROMPT,
+        contract: ['⟦完⟧'], note: '⟦=…⟧ / ⟦依据⟧ / ⟦诉求⟧ / ⟦完⟧ 这几种记号的写法是解析契约。' },
+    { id: 'fix.z2', group: '校正', label: '手动校正 · 面板改字指令',
+        desc: '记号前推时，结构块面板里允许改字的说明（后面接 <panels> 段）。', builtin: FIX_Z2_INSTRUCTION },
+    { id: 'fix.span', group: '校正', label: '✂️ 选段校正 · 系统提示词',
+        desc: '选段校正（只改划选的一段）的主指令。', builtin: FIX_SPAN_PROMPT,
+        contract: ['<FixedSpan>'], note: '<FixedSpan> 区块是解析契约。' },
+    { id: 'fix.light', group: '校正', label: '自动校正 · 轻校',
+        desc: '去 AI 味的默认档：定位 → 修正 → 收紧，一次调用。', builtin: FIX_SYSTEM_PROMPT_TIGHTEN,
+        legacy: { key: 'fixLightSystemPrompt', kind: 'override' }, contract: ['<FixedReply>'],
+        note: '保留输出格式要求（<FixedReply> / <problems> 区块）——丢了它们，校正结果将无法被解析应用。' },
+    { id: 'fix.thorough', group: '校正', label: '自动校正 · 精校（DeepSeek / Gemini 侧重）',
+        desc: '精校档、侧重选 DeepSeek 类或 Gemini 类时用。', builtin: FIX_PROMPT_JINGXIAO_DEEPSEEK,
+        legacy: { key: 'fixThoroughSystemPrompt', kind: 'override' }, contract: ['<FixedReply>'],
+        note: '改了这一条、而「精校（Opus 侧重）」没改时，Opus 侧重也用这一份（与原版一致）。' },
+    { id: 'fix.thoroughOpus', group: '校正', label: '自动校正 · 精校（Opus 侧重）',
+        desc: '精校档、侧重选 Opus 类时用（对「数据包腔」更强攻）。', builtin: FIX_PROMPT_JINGXIAO_OPUS, contract: ['<FixedReply>'] },
+    { id: 'fix.keepAnchors', group: '校正', label: '保留区锚点说明',
+        desc: '正文里嵌了 ⟦SO_KEEP_n⟧ 占位锚点时附上，要求模型原样留在原位。',
+        builtin: '【保留区锚点】<text_to_transform> 里形如 ⟦SO_KEEP_数字⟧ 的标记是系统占位锚点（用户「保留区」的内容已被抽走，稍后会按标记位置原样接回）：必须【原样保留、留在它出现的位置】，绝不改写、移动、合并或删除——它不是要校正的内容；正文其余照常校正。' },
+    { id: 'fix.customFooter', group: '校正', label: '📋 自定义模板 · 输出格式',
+        desc: '接在你的模板后面的输出格式要求。', builtin: FIX_CUSTOM_FOOTER, contract: ['<FixedReply>'] },
+    { id: 'fix.customRawNote', group: '校正', label: '📋 自定义模板 · 结构块原样保留',
+        desc: '关了「沿用校正的正文识别」、整条回复交给模板时附上。', builtin: FIX_CUSTOM_RAW_NOTE },
+    { id: 'fix.customLead', group: '校正', label: '📋 自定义模板 · 请求句',
+        desc: '用模板处理回复时替你发出的那句话。', builtin: FIX_CUSTOM_LEAD },
+
+    // —— 校正目标 ——
+    { id: 'fix.targetsLead', group: '校正目标', label: '总起句',
+        desc: '按目标去 AI 味时，排在所有目标前面的一句。', builtin: FIX_TARGETS_LEAD },
+    { id: 'fix.target.slop', group: '校正目标', label: FIX_TARGET_MODULES.slop.label,
+        desc: `勾选「${FIX_TARGET_MODULES.slop.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.slop.t1 + (FIX_TARGET_MODULES.slop.t2 ? '\n' + FIX_TARGET_MODULES.slop.t2 : ''),
+        legacy: { key: 'fixTargetSlopPrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.slop.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.target.dialogue', group: '校正目标', label: FIX_TARGET_MODULES.dialogue.label,
+        desc: `勾选「${FIX_TARGET_MODULES.dialogue.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.dialogue.t1 + (FIX_TARGET_MODULES.dialogue.t2 ? '\n' + FIX_TARGET_MODULES.dialogue.t2 : ''),
+        legacy: { key: 'fixTargetDialoguePrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.dialogue.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.target.precision', group: '校正目标', label: FIX_TARGET_MODULES.precision.label,
+        desc: `勾选「${FIX_TARGET_MODULES.precision.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.precision.t1 + (FIX_TARGET_MODULES.precision.t2 ? '\n' + FIX_TARGET_MODULES.precision.t2 : ''),
+        legacy: { key: 'fixTargetPrecisionPrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.precision.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.target.magic', group: '校正目标', label: FIX_TARGET_MODULES.magic.label,
+        desc: `勾选「${FIX_TARGET_MODULES.magic.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.magic.t1 + (FIX_TARGET_MODULES.magic.t2 ? '\n' + FIX_TARGET_MODULES.magic.t2 : ''),
+        legacy: { key: 'fixTargetMagicPrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.magic.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.target.pacing', group: '校正目标', label: FIX_TARGET_MODULES.pacing.label,
+        desc: `勾选「${FIX_TARGET_MODULES.pacing.label}」时发给模型的那一段。`,
+        builtin: FIX_TARGET_MODULES.pacing.t1 + (FIX_TARGET_MODULES.pacing.t2 ? '\n' + FIX_TARGET_MODULES.pacing.t2 : ''),
+        legacy: { key: 'fixTargetPacingPrompt', kind: 'override' },
+        note: '只写内容，【标签】头由程序自动加。' + (FIX_TARGET_MODULES.pacing.t2
+            ? '内置分两段——第二段只在所需依据（角色卡 / 前文 / 世界书）在场时附加；改过后整份恒发。'
+            : '改过后整份恒发。') },
+    { id: 'fix.knowledge', group: '校正目标', label: '角色知识边界',
+        desc: '「进阶设置」里填了角色知识边界时附上。',
+        builtin: '【角色知识边界】把以下当成关于角色已知 / 未知的事实约束，逐句检查：任何角色用到边界外的信息，'
+        + '就改成 ta 表现出不知道 / 疑惑 / 需要去查，自然不生硬；无法判断是否违反就保留原样。\n约束：' + '{%knowledge%}', vars: { knowledge: '你填的知识边界' }, required: ['knowledge'] },
+    { id: 'fix.guardrails', group: '校正目标', label: '剧情护栏',
+        desc: '「进阶设置」里填了剧情护栏时附上。',
+        builtin: '【剧情护栏】遵守以下剧情规则，只纠正违反之处，不擅改其他剧情：\n{%guardrails%}', vars: { guardrails: '你填的剧情护栏' }, required: ['guardrails'] },
+
+    // —— 角色工坊 ——
+    { id: 'bld.interview', group: '角色工坊', label: '访谈师 · NPC',
+        desc: '打造目标是 NPC 世界书条目时，访谈师的主指令。', builtin: BUILDER_INTERVIEW_PROMPT },
+    { id: 'bld.interviewSteal', group: '角色工坊', label: '访谈师 · 用户角色（抢话）',
+        desc: '打造目标是用户角色·抢话时，访谈师的主指令。', builtin: BUILDER_INTERVIEW_PROMPT_STEAL },
+    { id: 'bld.interviewNosteal', group: '角色工坊', label: '访谈师 · 用户角色（不抢话）',
+        desc: '打造目标是用户角色·不抢话时，访谈师的主指令。', builtin: BUILDER_INTERVIEW_PROMPT_NOSTEAL },
+    { id: 'bld.protocol', group: '角色工坊', label: '输出区块格式',
+        desc: '访谈与锻造共用：<CharBrief> / <CharDraft> / <DraftPatch> 三种区块怎么写。', builtin: BUILDER_PROTOCOL,
+        contract: ['<CharBrief>', '<CharDraft>', '<DraftPatch>'], note: '三种区块的格式是解析契约：改坏了，汇总、草稿、修改都收不下来。' },
+    { id: 'bld.target', group: '角色工坊', label: '「当前目标」行',
+        desc: '告诉模型这次在打造什么。', builtin: '【当前目标】{%target%}', vars: { target: '打造目标（如「NPC 世界书条目」）' }, required: ['target'] },
+    { id: 'bld.sections', group: '角色工坊', label: '「草稿包含」行',
+        desc: '列出勾选的部分，并禁止生成 / 追问没勾的部分；一个都没勾时用后半句代替。',
+        builtin: '本次草稿需要覆盖的部分：{%#list%}{%list%}{%/list%}{%^list%}（用户未勾选任何部分——只写一句话概括）{%/list%}。未列出的部分一律不要生成，也不要在访谈中追问。',
+        vars: { list: '勾选的部分（顿号分隔）' } },
+    { id: 'bld.lookMustAsk', group: '角色工坊', label: '外貌素材 · 必问',
+        desc: 'NPC 访谈、勾了「外貌特征」时附上：没有外貌素材就必须问一次。', builtin: BUILDER_LOOK_MUSTASK },
+    { id: 'bld.draftRef', group: '角色工坊', label: '当前草稿正文段（修订时）',
+        desc: '已有草稿时，把它作为 <DraftPatch> 锚点的唯一来源喂给访谈师。',
+        builtin: '=== 当前草稿正文（权威·你正在修改的就是这一份；出 <DraftPatch> 时锚点务必从这里【逐字复制】，不要凭对话记忆或用户转述）===\n{%draft%}',
+        vars: { draft: '当前草稿（正在显示的那个版本）' }, required: ['draft'] },
+    { id: 'bld.wi', group: '角色工坊', label: '访谈 · 世界书段',
+        desc: '访谈时附上的世界书条目（提醒模型遵守「角色如何生成」类规则）。',
+        builtin: '=== 世界书 / 设定（找找有没有专门规定「角色如何生成」的条目——命名规则、种族限制、数值模板、格式规定；有就必须遵守）===\n{%wi%}',
+        vars: { wi: '选中的世界书条目' }, required: ['wi'] },
+    { id: 'bld.scanWi', group: '角色工坊', label: '访谈 · 关键词命中段',
+        desc: '勾了「关键词触发世界书」时附上的补充条目。',
+        builtin: '=== 世界书 · 关键词命中（参考补充——聊天里提到的相关设定）===\n{%wi%}', vars: { wi: '关键词命中的条目' }, required: ['wi'] },
+    { id: 'bld.stat', group: '角色工坊', label: '变量状态段',
+        desc: '勾了「带上状态栏数据」时附上（访谈与锻造共用）。',
+        builtin: '=== 当前变量状态（stat_data）===\n{%stat%}', vars: { stat: '当前变量状态（stat_data）JSON' }, required: ['stat'] },
+    { id: 'bld.transcript', group: '角色工坊', label: '故事对话记录段',
+        desc: '访谈与锻造共用的主聊天记录。',
+        builtin: '=== 故事对话记录（最新的在最后）===\n{%transcript%}', vars: { transcript: '最近的主聊天记录' }, required: ['transcript'] },
+    { id: 'bld.macroNote', group: '角色工坊', label: '宏说明（条目里有 {{user}} 等宏时）',
+        desc: '世界书条目按原样显示、含 {{user}} 等宏时放在最前面的说明。',
+        builtin: '（说明：以下条目按原样显示，{{user}}/{{char}} 等宏未替换；写草稿时可以按当前故事用真名。）' },
+
+    // —— 角色锻造 ——
+    { id: 'bld.forge', group: '角色锻造', label: '锻造工序 · NPC',
+        desc: '点「🔨 生成」时锻造 NPC 世界书条目的工序指令。', builtin: BUILDER_FORGE_PROMPT,
+        contract: ['<CharDraft>'], note: '工序里每个「■ 部分名」小节会按「草稿包含」的勾选删留：改写时保留这些小节头，否则没勾的部分删不掉。' },
+    { id: 'bld.forgeSteal', group: '角色锻造', label: '锻造工序 · 用户角色（抢话）',
+        desc: '锻造用户角色·抢话版的工序指令。', builtin: BUILDER_FORGE_PROMPT_STEAL,
+        contract: ['<CharDraft>'], note: '「■ 部分名」小节头会按勾选删留，改写时请保留。' },
+    { id: 'bld.forgeNosteal', group: '角色锻造', label: '锻造工序 · 用户角色（不抢话）',
+        desc: '锻造用户角色·不抢话版的工序指令。', builtin: BUILDER_FORGE_PROMPT_NOSTEAL,
+        contract: ['<CharDraft>'], note: '「■ 部分名」小节头会按勾选删留，改写时请保留。' },
+    { id: 'bld.dlgRich', group: '角色锻造', label: '台词丰满',
+        desc: '勾了「台词丰满」时附在锻造指令后面。', builtin: DLG_RICH_RIDER },
+    { id: 'bld.forgeWi', group: '角色锻造', label: '锻造 · 世界书段',
+        desc: '锻造时附上的世界书条目。', builtin: '=== 世界书 / 设定 ===\n{%wi%}', vars: { wi: '选中的世界书条目' }, required: ['wi'] },
+    { id: 'bld.forgeScanWi', group: '角色锻造', label: '锻造 · 关键词命中段',
+        desc: '锻造时附上的关键词命中条目。', builtin: '=== 世界书 · 关键词命中（参考补充）===\n{%wi%}', vars: { wi: '关键词命中的条目' }, required: ['wi'] },
+    { id: 'bld.forgeAsk', group: '角色锻造', label: '锻造请求',
+        desc: '点「🔨 生成」时替你发出的那句话（后接访谈汇总）。', builtin: '按工序锻造这个角色：\n\n{%brief%}',
+        vars: { brief: '访谈汇总 <CharBrief> 原文' }, required: ['brief'] },
+    { id: 'bld.condense', group: '角色锻造', label: '✂️ 精简',
+        desc: '草稿卡上「✂️ 精简」：拆长句、删重复，不添内容。', builtin: DRAFT_CONDENSE_PROMPT,
+        contract: ['<<<content'], note: '<<<content … content>>> 围栏是解析契约。' },
+    { id: 'bld.condenseAsk', group: '角色锻造', label: '✂️ 精简 · 请求',
+        desc: '精简时替你发出的那句话。', builtin: '请按系统规则精简下面这张角色卡正文。\n【原稿开始】\n{%draft%}\n【原稿结束】',
+        vars: { draft: '草稿原稿' }, required: ['draft'] },
+    { id: 'bld.condenseSect', group: '角色锻造', label: '✂️✂️ 深度精简 · 分节',
+        desc: '深度精简第一步：分三份逐节精简。', builtin: CONDENSE_SECT_PROMPT,
+        contract: ['<<<content'], note: '<<<content … content>>> 围栏是解析契约。' },
+    { id: 'bld.condenseSectAsk', group: '角色锻造', label: '✂️✂️ 深度精简 · 分节请求',
+        desc: '每一份分节精简的请求正文。',
+        builtin: '【全卡参考（只读，供查重，不要输出）】\n{%full%}\n\n【你负责精简的节】{%names%}\n【这些节的原文】\n{%text%}',
+        vars: { full: '整张卡原稿', names: '本份负责的节名', text: '这些节的原文' }, required: ['text'] },
+    { id: 'bld.condenseOps', group: '角色锻造', label: '✂️✂️ 深度精简 · 删减手术单',
+        desc: '深度精简第二步：开出删减 / 压缩清单，由程序逐条执行。', builtin: CONDENSE_OPS_PROMPT,
+        contract: ['〔删〕'], note: '〔删〕/〔缩〕的行格式是解析契约。' },
+    { id: 'bld.condenseOpsAsk', group: '角色锻造', label: '✂️✂️ 深度精简 · 手术单请求',
+        desc: '开手术单时的请求正文。', builtin: '请为下面这张角色卡正文开删减手术单。\n【正文开始】\n{%draft%}\n【正文结束】',
+        vars: { draft: '分节精简后的整卡' }, required: ['draft'] },
+
+    // —— 上下文段落（各模式共用）——
     { id: 'ctx.card', group: '上下文段落', label: '角色卡段',
         desc: '角色名、描述、性格、场景和你的 Persona 拼成的一段。',
         builtin: '=== 角色 / 设定 ===\n角色：{%char%}\n\n用户 / Persona：{%user%}\n\n'
@@ -25907,6 +26095,12 @@ const PROMPT_DEFS = [
         desc: '参谋模式叠加人格时，说明「构思未来剧情是本职」。', builtin: PERSONA_MODE_OVERRIDES.advisor },
     { id: 'persona.structGuard', group: '人格', label: '结构保护（参谋模式）',
         desc: '参谋模式叠加人格时，要求方案区块的格式不受腔调影响。', builtin: PERSONA_STRUCT_GUARD },
+    { id: 'persona.lorebookDuty', group: '人格', label: '世界书模式的职责调整',
+        desc: '世界书模式叠加人格时，说明「按要求改条目是本职」。', builtin: PERSONA_MODE_OVERRIDES.lorebook },
+    { id: 'persona.builderDuty', group: '人格', label: '角色工坊的职责调整',
+        desc: '角色工坊访谈叠加人格时，要求区块内部格式不受腔调影响。', builtin: PERSONA_MODE_OVERRIDES.builder },
+    { id: 'persona.structGuardWi', group: '人格', label: '结构保护（世界书 / 角色工坊）',
+        desc: '世界书与工坊叠加人格时，要求区块格式和条目正文都不带人格腔调。', builtin: PERSONA_STRUCT_GUARD_WI },
     { id: 'persona.flesh', group: '人格', label: '「✨ AI 帮我完善」扩写提示词',
         desc: '自定义人格编辑器里「✨ AI 帮我完善」用的指令。', builtin: PERSONA_FLESH_PROMPT,
         contract: ['<PersonaVoice>'], note: '<PersonaVoice> / <PersonaExample> 区块是解析契约。' },
@@ -26329,7 +26523,7 @@ function buildFixSpanEnvelope(b) {
 function buildFixSpanPrompt(ctx, s, sel) {
     let subst = (t) => t;
     if (ctx && typeof ctx.substituteParams === 'function') subst = (t) => { try { return ctx.substituteParams(t); } catch (e) { return t; } };
-    return subst(FIX_SPAN_PROMPT) + '\n\n' + buildFixSpanEnvelope({ card: fixCardBlock, summary: fixSummaryBlock, context: fixContextBlock, full: (sel && sel.full) || '', span: (sel && sel.text) || '' });
+    return subst(P('fix.span', null, s || undefined)) + '\n\n' + buildFixSpanEnvelope({ card: fixCardBlock, summary: fixSummaryBlock, context: fixContextBlock, full: (sel && sel.full) || '', span: (sel && sel.text) || '' });
 }
 
 // 选段调用的消息数组（单一来源，R9）：单段路径 runFixSelect 与多段批发 runFixSelectBatch 都从这儿拿——
@@ -26378,10 +26572,7 @@ function buildFixEnvelope(blocks) {
 // 但【用户指令优先】——用户明确要改某块内部时以用户要求为准（否则「让描写更生动」这类泛指令会顺手删掉
 // 结构块，用户反馈）。纯函数、可单测（fix-manual-structural.test.mjs）。
 function fixManualStructuralNote() {
-    return '【结构块保留】这条回复里可能夹着非叙事的结构块——状态栏、[方括号]标记、HTML / XML 区块、选项菜单、'
-        + '图片生成提示等。默认把它们连同内部内容【原样逐字保留】，不要改写、精简、翻译或删除，也不要改动其位置。'
-        + '【例外·用户指令优先】若用户的修改要求明确指向某个结构块内部的内容，则以用户要求为准、按要求改那一处；'
-        + '其余结构块仍原样保留。';
+    return P('fix.structuralNote');
 }
 
 // 校正系统提示 = 基础规则 + 内嵌的【待校正正文】。基础规则的优先级：旧全局覆盖 s.fixSystemPrompt
@@ -26394,12 +26585,7 @@ function buildFixPrompt(ctx, s) {
     // 再叮嘱「原样保留它们」会与「系统已经替你收走了」直接矛盾。
     const fwd = (ENABLE_FIX_FORWARD && fixActiveMode === 'manual' && fixFwdState && fixFwdState.armed) ? fixFwdState : null;
     const override = (s.fixSystemPrompt || '').trim();   // 旧全局覆盖（无 UI、手改 settings 用）：仍最高优先，行为不变
-    // ✨ 1.46.0 开放编辑：轻校 / 精校各自的用户覆盖（设置「系统提示词」编辑器写入；空 = 内置）。
-    // 精校覆盖必须裸键判断、不能走 resolveModePrompt——那个静态 builtin 是 DEEPSEEK 版，会把 opus 侧重遮蔽。
-    const lightOverride = (s.fixLightSystemPrompt || '').trim();
-    const thoroughOverride = (s.fixThoroughSystemPrompt || '').trim();
-    // 自动分支：精校（thorough）时用 resolveFixAutoPrompt 选侧重提示；轻校（light，默认）恒用收紧版
-    // （1.18.3：✂️收紧 开关移除，非收紧基底 FIX_SYSTEM_PROMPT 已删）。
+    // 自动分支：轻校 / 精校（含侧重）都由 resolveFixAutoPrompt 从提示词注册表取（fix.light / fix.thorough / fix.thoroughOpus）。
     // 📋 自定义模板任务（ENABLE_FIX_CUSTOM_TASK）：模式先判——系统提示 = 用户模板 + 代码页脚，
     // 【有意】压过 s.fixSystemPrompt 旧全局覆盖与轻校 / 精校覆盖（那些描述的是「校正」语义，
     // 与「按模板做任意处理」直接矛盾；输出契约是机械的，不是口味问题——同 ⟦记号前推⟧ 的判断）。
@@ -26411,13 +26597,11 @@ function buildFixPrompt(ctx, s) {
     // 模型根本碰不到，再叮嘱「原样保留结构块」会与「系统已经替你收走了」自相矛盾（同 ⟦记号前推⟧ 的判断）。
     const custom = (ENABLE_FIX_CUSTOM_TASK && fixActiveMode === 'custom');
     const customRawTable = !!(custom && fixCustomJoin);
-    const base = fwd ? FIX_FORWARD_PROMPT : (custom
-        ? (fixCustomTemplateText + '\n\n' + FIX_CUSTOM_FOOTER + (customRawTable ? '\n' + FIX_CUSTOM_RAW_NOTE : ''))
+    const base = fwd ? P('fix.forward', null, s) : (custom
+        ? (fixCustomTemplateText + '\n\n' + P('fix.customFooter', null, s) + (customRawTable ? '\n' + P('fix.customRawNote', null, s) : ''))
         : (override || (fixActiveMode === 'manual'
-            ? FIX_SYSTEM_PROMPT_MANUAL
-            : (fixAutoPromptVersion === 'thorough'
-                ? (thoroughOverride || resolveFixAutoPrompt({ promptVersion: fixAutoPromptVersion, promptFlavor: fixAutoPromptFlavor }))
-                : (lightOverride || FIX_SYSTEM_PROMPT_TIGHTEN)))));
+            ? P('fix.manual', null, s)
+            : resolveFixAutoPrompt({ promptVersion: fixAutoPromptVersion, promptFlavor: fixAutoPromptFlavor }, s))));
     let subst = (t) => t;
     if (ctx && typeof ctx.substituteParams === 'function') {
         subst = (t) => { try { return ctx.substituteParams(t); } catch (e) { return t; } };
@@ -26429,7 +26613,7 @@ function buildFixPrompt(ctx, s) {
     let prompt = subst(base) + '\n\n' + envelope;
     // 排除·保留区：正文里嵌了 ⟦SO_KEEP_n⟧ 占位锚点时，明确要求模型原样留在原位（弄丢了由 composeFixedReply 兜底接回）。
     if (Array.isArray(fixExtraKeep) && fixExtraKeep.length) {
-        prompt += '\n\n【保留区锚点】<text_to_transform> 里形如 ⟦SO_KEEP_数字⟧ 的标记是系统占位锚点（用户「保留区」的内容已被抽走，稍后会按标记位置原样接回）：必须【原样保留、留在它出现的位置】，绝不改写、移动、合并或删除——它不是要校正的内容；正文其余照常校正。';
+        prompt += '\n\n' + P('fix.keepAnchors', null, s);
     }
     // 手动模式：尾附「结构块保留」软约束（自动走信封 / 分段保护，不需要——也避免干扰调优过的自动提示）。
     // ⟦记号前推⟧ 不附：它的结构块【不在画布上】（靠缺席保护），叮嘱「原样保留结构块」会与提示词里
@@ -26441,7 +26625,7 @@ function buildFixPrompt(ctx, s) {
     // 不动（并排的反重打轮次在改它，混在一起无法归因——§5-8 的组合决定）。没有合格块 / 用户诉求
     // 一块都没命中 → 这里什么都不加，提示词面与今天逐字节相同（诚实注记由复核卡出）。
     if (ENABLE_FIX_ZONE2 && fwd && fwd.z2 && fwd.z2.armed && fwd.z2.display) {
-        prompt += '\n\n' + FIX_Z2_INSTRUCTION + '\n\n<panels>\n' + fwd.z2.display + '\n</panels>';
+        prompt += '\n\n' + P('fix.z2', null, s) + '\n\n<panels>\n' + fwd.z2.display + '\n</panels>';
     }
     return prompt;
 }
@@ -26469,7 +26653,7 @@ function buildDiagnosePromptFrom(ctx, s, { wiBlock, statStr, latestBlock, latest
     const push = (text) => { parts.push({ text, verbatim: false }); };
     const pushRaw = (text) => { parts.push({ text, verbatim: true }); };
 
-    push(resolveModePrompt(s, 'diagnose'));
+    push(P('diag.system', null, s));
 
     // 自动诊断附则：基础诊断提示词假设「当前状态已反映最新更新」——这在【没有区块、需从正文推导】
     // 的情形里是错的（没有任何机制写过这条回复）。
@@ -26481,55 +26665,46 @@ function buildDiagnosePromptFrom(ctx, s, { wiBlock, statStr, latestBlock, latest
             // 丙（1.69.0 D6）：回复里【有】区块，但 MVU 一条都没执行（漏闭合标签 / 标签带空白 /
             // 毒元素 / 全 move / 全开错根）。甲的「已经生效」在这里是【假的】，乙的「正文里没有
             // 区块」也是【假的】—— 两条都会把模型引向错误动作，故单列第三段。
-            ? '【自动诊断模式 —— 重要】这是一次后台自动诊断，时机是一条新 AI 回复刚到。这条回复的正文里【带有】一个变量更新区块，但那个区块【没有生效】——它的格式坏了（缺闭合标签／写法引擎不认／指令本身落不了地），变量引擎这一回合一条指令都没有执行，当前状态【尚未】包含这条回复带来的变化。请你充当变量更新引擎——通读这段回复，依角色卡 MVU 规则与当前状态，重新推导出本回合【应当】发生的全部变量更新（好感度增减、物品获得 / 消耗、时间推进、地点 / 状态变化……），生成 <UpdateVariable> 补丁把状态更新到这条回复之后的正确值。\n'
-                + '正文里那段坏掉的区块可以当【线索】参考（它写了什么、想改哪些字段），但不要照抄它的路径与写法——以剧情里确凿发生的事、以及当前状态里真实存在的字段为准，绝不脑补没写的细节。\n'
-                + '遵循下方输出规则；确实没有任何变量需要变动时，输出空的 JSONPatch（[]）。'
-            : (derive
-            ? '【自动诊断模式 —— 重要】这是一次后台自动诊断，时机是一条新 AI 回复刚到，而这条回复的正文里【没有】任何变量更新区块：说明本回合的变量更新【还没有】被写入，当前状态【尚未】包含这条回复带来的变化。请你充当变量更新引擎——通读这段回复，依角色卡 MVU 规则与当前状态，推导出本回合【应当】发生的全部变量更新（好感度增减、物品获得 / 消耗、时间推进、地点 / 状态变化……），生成 <UpdateVariable> 补丁把状态更新到这条回复之后的正确值。只依据回复里确凿发生的事，绝不脑补没写的细节。\n'
-                + '遵循下方输出规则；确实没有任何变量需要变动时，输出空的 JSONPatch（[]）。'
-            : '【自动诊断模式 —— 重要】这是一次后台自动诊断。这条 AI 回复【自带】变量更新，且它【已经生效】——当前状态就是该更新应用之后的结果。你的任务只是【核验并最小化修正】它（仍以当前状态为事实依据）。\n'
-                + '【绝对不要】把这回合的变化重新推导、重新计算一遍：那些增减（花掉的钱、涨的好感度、推进的时间……）都已经算进当前状态了，再补一次就会把同一笔算两遍。只在当前状态里能指出【具体错值】时才出补丁。\n'
-                + '遵循下方输出规则；没有缺陷时输出空的 JSONPatch（[]）。'));
+            ? P('diag.autoDead', null, s)
+            : (derive ? P('diag.autoDerive', null, s) : P('diag.autoVerify', null, s)));
     }
 
     // World info carries the card's MVU rules (blue/constant entries always fire).
-    push('=== 角色卡 MVU 规则（来自世界书）===\n' +
-        (wiBlock || '（未找到世界书规则 —— 诊断结果可能不完整）'));
+    push(P('diag.rules', { wi: wiBlock || '' }, s));
 
     // 状态是【数据】：补丁按这里的字面路径 / 取值来开，展开宏就等于给模型看了一份假数据。
-    pushRaw('=== 当前变量状态（stat_data）===\n' +
-        (statStr || '（不可用 —— 未检测到 MVU 框架）'));
+    pushRaw(P('diag.stat', { stat: statStr || '' }, s));
 
     // 更新区块 / 回复正文同理，全走逐字（下面五条分支都是 pushRaw）。
     // 丙（1.69.0）排在【最前】：那种回复往往【摘得到】一个闭合齐全的 <UpdateVariable>（坏的只是
     // 里面的 <JSONPatch>），若让 latestBlock 那一支先命中，模型会看到一个写着「待检查的更新」的
     // 小节 —— 等于把它引回核验，正是这次要修掉的那条死路。
     if (auto && latestReply && deadBlock) {
-        pushRaw('=== 最新一条 AI 回复（其中那段变量更新区块【没有生效】——格式坏损，变量引擎这一回合一条指令都没执行；请据这段剧情、依 MVU 规则与当前状态，重新推导出本回合应当发生的全部变量更新）===\n' + latestReply);
+        pushRaw(P('diag.latestDead', { reply: latestReply }, s));
     } else if (latestBlock) {
-        pushRaw('=== 最新更新区块（待检查的更新）===\n' + latestBlock);
+        pushRaw(P('diag.latestBlock', { block: latestBlock }, s));
     } else if (auto && latestReply && derive) {
         // 推导情形：把整条回复正文交给模型，明确「正文里没有更新区块、请据此推导」。
-        pushRaw('=== 最新一条 AI 回复（正文里【没有】变量更新区块——请据这段剧情、依 MVU 规则与当前状态，推导出本回合应当发生的全部变量更新）===\n' + latestReply);
+        pushRaw(P('diag.latestDerive', { reply: latestReply }, s));
     } else if (auto && latestReply) {
         // 摘不到但探测得到（卡片用了非标准标签 / 区块被截断）：整条回复交给模型自己找那段更新来核验。
         // 措辞必须堵死「重推一遍」——这条路正是 1.40.2 修的双重计数入口。
-        pushRaw('=== 最新一条 AI 回复（其中【含有】变量更新区块，但用的不是标准标签、系统未能单独摘出——请自行从中找出那段更新并核验。它已经生效，当前状态已包含它，切勿重新推导一遍）===\n' + latestReply);
+        pushRaw(P('diag.latestUnparsed', { reply: latestReply }, s));
     } else {
-        pushRaw('=== 最新更新区块（待检查的更新）===\n（在最新一条 AI 回复中未找到 <UpdateVariable> 区块）');
+        pushRaw(P('diag.latestNone', null, s));
     }
 
     if (s.includeCard) push(buildCardSection(ctx));
 
     const transcript = buildTranscript(ctx, s, /*keepMechanism*/ true);
-    if (transcript) push('=== 故事对话记录（最新的在最后）===\n' + transcript);
+    if (transcript) push(P('diag.transcript', { transcript }, s));
 
     const subst = (t) => { try { return ctx.substituteParams(t); } catch (e) { return t; } };
     return parts.filter((p) => p.text).map((p) => (p.verbatim ? p.text : subst(p.text))).join('\n\n');
 }
 
 function buildLorebookPrompt(ctx, s) {
-    const parts = [resolveModePrompt(s, 'lorebook')];
+    const parts = [P('lb.system', null, s)];
 
     // 说话人格（仅当用户主动选了某个人格时）：管家指令之上叠一层语气皮肤，
     // 附带职责调整 + 结构保护（区块格式与围栏正文不受人格影响）。
@@ -26551,7 +26726,7 @@ function buildLorebookPrompt(ctx, s) {
         const lwbSection = buildLwbHistorySection(getLwbSummaryText());   // 小白X 记忆桥（同位柏宝书）
         if (lwbSection) parts.push(lwbSection);
         const transcript = buildTranscript(ctx, s);
-        if (transcript) parts.push('=== 最近的故事对话记录（仅供参考，最新的在最后）===\n' + transcript);
+        if (transcript) parts.push(P('lb.transcript', { transcript }, s));
     }
 
     // 不跑 substituteParams：管家指令本身无宏，而书正文（现由尾部快照块承载）里的字面 {{user}}/{{char}}
@@ -26568,16 +26743,8 @@ function formatLbSnapshotBlock(bookText, applySnap) {
         ? '（未读取到世界书 —— 请检查上方的选择。）'
         : String(bookText);
     const serial = (applySnap && Number.isFinite(applySnap.serial) && applySnap.serial >= 1) ? applySnap.serial : 1;
-    const lines = [`════ 世界书快照 · 第 ${serial} 版（每次发送自动重读，唯一权威）════`];
     const ops = (applySnap && Array.isArray(applySnap.ops)) ? applySnap.ops : [];
-    if (ops.length) {
-        lines.push('〔上次应用结果〕（仅最近一次）');
-        for (const r of ops) lines.push(lbFormatApplyLine(r));
-        lines.push('────');
-    }
-    lines.push(book);
-    lines.push('════ 快照结束 · 校验与锚点只能从本快照逐字复制 ════');
-    return lines.join('\n');
+    return P('lb.snapshot', { serial: String(serial), applied: ops.map(lbFormatApplyLine).join('\n'), book });
 }
 // 非纯封装：从模块级 lbContextText + 当前聊天的应用快照现拼快照块。
 function buildLorebookSnapshotBlock() {
@@ -30748,7 +30915,7 @@ async function runCustomTask(ctx, s, targetId, compatSession, manual = false) {
     const join = fixCustomJoin || (fixPieceTable ? fixJoinTable(fixPieceTable, fixDropMinusKeep(cc.keepTags, cc.dropTags)) : null);
     if (!join) { addAutoFixNote('nochange', '没有可处理的正文', null, meta); return; }
     if ([...join.core].length < clampFixAutoMinChars(cfg.fixAutoMinChars)) { addAutoFixNote('nochange', '太短', null, meta); return; }
-    await fixRunJoin(ctx, s, FIX_CUSTOM_LEAD, join, compatSession, meta);
+    await fixRunJoin(ctx, s, P('fix.customLead', null, s), join, compatSession, meta);
 }
 
 // 📋 「用模板处理最新回复」按钮：一次性手动触发。起飞前的各种拒绝（连接没配 / 模板缺失 / 没有可处理的回复）
