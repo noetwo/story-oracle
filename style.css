@@ -3316,3 +3316,49 @@ body.so-skin-light .so-cur-disabled {
 
 /* 🩺 1.89.0：从存档检查跳到某一格时闪 2 秒（复用脏行的左缘强调色，明暗两皮都可见；不钉颜色）。 */
 .so-mvued-flash { box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor), 0 0 0 2px var(--SmartThemeQuoteColor); border-radius: 4px; }
+
+/* ⚡ 快捷指令（二创版 2.2）：模型栏右侧。宽 = 一排名字 + ⋯；模型栏窄于 560px（窄窗口 / 手机）= 收成一个按钮 + 上拉列表。 */
+#so-model-bar { container: so-mbar / inline-size; gap: 8px; }
+.so-qp-chips { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 1px 0; }
+.so-qp-chips::-webkit-scrollbar { display: none; }
+.so-qp-chip {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; max-width: 14em;
+    padding: 4px 10px; font: inherit; font-size: 0.78em; color: inherit; cursor: pointer; white-space: nowrap;
+    background: rgba(var(--so-ink), 0.04); border: 1px dashed var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18)); border-radius: 999px;
+}
+.so-qp-chip > span { overflow: hidden; text-overflow: ellipsis; }
+.so-qp-chip:hover { background: rgba(var(--so-ink), 0.12); border-style: solid; }
+.so-qp-chip > i, .so-qp-toggle > i:first-child, .so-qp-more > .fa-bolt { color: var(--so-accent); font-size: 0.9em; }
+.so-qp-more, .so-qp-toggle {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+    padding: 4px 9px; font: inherit; font-size: 0.78em; color: inherit; cursor: pointer; white-space: nowrap;
+    background: rgba(var(--so-ink), 0.06); border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14)); border-radius: 999px;
+}
+.so-qp-more:hover, .so-qp-more[aria-expanded="true"], .so-qp-toggle:hover, .so-qp-toggle[aria-expanded="true"] { background: rgba(var(--so-ink), 0.12); }
+.so-qp-toggle { display: none; }
+.so-qp-toggle > .fa-chevron-up { font-size: 0.8em; opacity: 0.6; }
+.so-qp-count { min-width: 1.5em; padding: 0 5px; border-radius: 999px; font-size: 0.9em; text-align: center; background: rgba(var(--so-ink), 0.1); }
+.so-model-menu.so-qp-menu { left: auto; right: 10px; width: min(340px, calc(100% - 20px)); }
+.so-qp-row { display: flex; align-items: stretch; gap: 2px; }
+.so-qp-row > .so-model-opt { flex: 1 1 auto; min-width: 0; }
+.so-qp-row .so-model-opt-sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; }
+.so-qp-fill {
+    flex: 0 0 auto; width: 40px; display: inline-flex; align-items: center; justify-content: center;
+    font: inherit; color: inherit; opacity: 0.6; cursor: pointer; background: transparent; border: 0; border-radius: 8px;
+}
+.so-qp-fill:hover, .so-qp-fill:focus-visible { opacity: 1; background: rgba(var(--so-ink), 0.08); }
+@container so-mbar (max-width: 560px) {
+    .so-qp-chips, .so-qp-more { display: none; }
+    .so-qp-toggle { display: inline-flex; padding: 6px 12px; }
+    .so-qp-row > .so-model-opt { min-height: 48px; }
+    .so-qp-fill { width: 52px; font-size: 1.15em; opacity: 0.75; border-left: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12)); border-radius: 0 8px 8px 0; }
+}
+/* 设置「快捷指令」页 */
+#so-qp-modes { margin: 8px 0 10px; }
+.so-qp-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12)); border-radius: var(--so-r-md, 12px); background: rgba(var(--so-ink), 0.03); }
+.so-qp-card-head { display: flex; align-items: center; gap: 4px; }
+#so-settings .so-qp-card-head .so-qp-name { flex: 1 1 auto; min-width: 0; }
+#so-settings .so-qp-card-head .so-qp-mode { flex: 0 0 auto; width: auto; max-width: 7.5em; }
+.so-qp-card-head .so-icon-btn:disabled { opacity: 0.3; cursor: default; }
+#so-settings .so-qp-card .so-qp-text { width: 100%; min-height: 6em; resize: vertical; }
+.so-qp-actions { display: flex; gap: 6px; flex-wrap: wrap; }

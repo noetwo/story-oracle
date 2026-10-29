@@ -909,15 +909,17 @@ const FIX_TARGET_MODULES = {
         t2: '- 用本卡世界书里真实存在的魔法 / 设定词汇与典故替换，而非泛化的"魔力 / 符文"（依据世界书）。' },
     // 二创版 2.1（用户反馈：西幻卡总冒古风词）。与「魔法被写成理科」同类：由用户按卡勾选，不自判设定。
     archaic: { label: '古风词混入（西幻 / 现代设定）',
-        t1: '- 这张卡不是中式古风 / 武侠 / 仙侠设定：把混进来的中式古风、武侠词换成本设定里的说法，意思和语气不变。下面箭头后举的是西幻的例子，现代设定就换成现代说法。常见几类：\n'
-          + '  · 称谓与自称：在下、小生、本座、老夫、贫道、公子、姑娘、小娘子、相公、夫君、兄台、大侠、掌柜、小二、客官、施主 → 我 / 先生 / 小姐 / 女士 / 阁下 / 大人 / 老板 / 酒保…\n'
+        t1: '- 这张卡不是中式古风 / 武侠 / 仙侠设定：把混进来的中式古风、武侠词换成本设定里的说法，意思和语气不变。下面箭头后举的是西幻的例子，现代设定就换成现代说法；原作自带的说法优先（如被遗忘的国度用金币、英尺、费伦诸神的名字）。常见几类：\n'
+          + '  · 称谓与自称：在下、小生、本座、老夫、贫道、妾身、奴婢、小的、公子、姑娘、小娘子、相公、夫君、老爷、兄台、大侠、掌柜、小二、客官、施主 → 我 / 先生 / 小姐 / 女士 / 阁下 / 大人 / 爵士 / 老板 / 酒保…\n'
+          + '  · 宫廷奴仆腔：谨遵、请缨、听凭发落、差遣、恩典、谢恩、叩谢 → 遵命 / 主动请命 / 任凭您处置 / 吩咐 / 赏赐 / 谢过大人…\n'
           + '  · 钱币、服饰、器物：银两、铜板、文钱、锦袍、长衫、襦裙、发簪、玉佩、绣鞋、宣纸、毛笔、八仙桌、太师椅 → 金币 / 银币 / 斗篷 / 长裙 / 发夹 / 羊皮纸 / 鹅毛笔 / 长桌…\n'
-          + '  · 时间与计量：时辰、一炷香、一盏茶、三更、半晌、晌午、丈、尺、寸 → 钟点 / 片刻 / 午夜 / 中午 / 几步远…，或干脆写成可感的描述。\n'
+          + '  · 时间与计量：时辰、一炷香、一盏茶、三更、半晌、晌午、丈、尺、寸 → 钟点 / 片刻 / 午夜 / 中午 / 几步远 / 英尺…，或干脆写成可感的描述。\n'
           + '  · 礼节、身份与机构：作揖、抱拳、拱手、福身、叩首、万福、衙门、捕快、府衙、知府、县令、镖局、客栈、书生、秀才、丫鬟、小厮 → 鞠躬 / 屈膝礼 / 抚胸行礼 / 卫兵 / 治安官 / 领主 / 旅店 / 学者 / 女仆 / 侍从…\n'
-          + '  · 文白腔与江湖腔：罢了、便是、甚好、莫要、岂敢、休得、何须、江湖、武林、内力、真气、经脉、丹田、轻功 → 平实的现代白话，或本设定的说法（魔力、斗气、战技…）。\n'
-          + '  · 带中国历史典故的成语 / 歇后语（卧薪尝胆、红颜祸水、三从四德、守株待兔…）→ 换成平实说法；「毫不犹豫」「若有所思」这类通用四字词不算古风，别动。\n'
+          + '  · 宗教：老天爷、菩萨、阎王、投胎转世、和尚、道观 → 诸神 / 具体的神名 / 祭司 / 神殿…\n'
+          + '  · 文白腔与江湖腔：罢了、便是、甚好、莫要、岂敢、休得、何须、江湖、武林、内力、真气、轻功 → 平实的现代白话，或本设定的说法（魔力、斗气、战技…）。\n'
+          + '  · 带中国历史典故的成语 / 歇后语（卧薪尝胆、红颜祸水、三从四德、守株待兔…）→ 换成平实说法；「毫不犹豫」「针锋相对」这类通用词不算古风，别动。\n'
           + '- 只换词，不改剧情、动作和句子结构；换完要读得像通顺的中文西幻 / 现代小说，不要生造翻译腔，也别硬塞英文。\n'
-          + '- 设定里本就有的东方元素（远东来客、异国商人、东方流派的人物）和角色刻意的口头禅照常保留。\n'
+          + '- 不动：穿越者、系统等外来者的对白与内心活动，以及他们从别的世界带来的能力、法宝、功法名（法力、修为、丹田、拂尘、金丹…），写在旁白里也不动；设定里本就有的东方元素和角色刻意的口头禅也照常保留。\n'
           + '（仅在西幻、现代或其它非中式古风设定下勾选此项。）',
         t2: '- 换词优先用本卡角色卡 / 世界书里真实存在的称谓、货币、机构、历法与魔法体系名称（依据角色卡与世界书）。' },
     pacing: { label: '描写拖沓 / 流水账',
@@ -1010,7 +1012,7 @@ const FIX_PREFILTER_PATTERNS = {
     // 描写拖沓 / 详略失当（语料注：难正则化，仅作弱信号）：解剖 / 骨骼名词扫描
     pacing: /脊椎|尾椎|下颌骨|颧骨|肩胛骨|肋骨|髋骨|桡骨|胫骨/,
     // 古风词混入（二创版 2.1，仅西幻 / 现代卡勾选）：与 FIX_TARGET_MODULES.archaic 列举的几类同源
-    archaic: /在下|小生|本座|老夫|贫道|公子|姑娘|娘子|相公|夫君|兄台|大侠|掌柜|小二|客官|施主|银两|铜板|文钱|锦袍|长衫|襦裙|发簪|玉佩|绣鞋|宣纸|毛笔|八仙桌|太师椅|时辰|一炷香|一盏茶|三更|半晌|晌午|作揖|抱拳|拱手|福身|叩首|万福|衙门|捕快|府衙|知府|县令|镖局|客栈|书生|秀才|丫鬟|小厮|罢了|甚好|莫要|岂敢|休得|何须|江湖|武林|内力|真气|经脉|丹田|轻功|卧薪尝胆|红颜祸水|三从四德|守株待兔|[一二三四五六七八九十两几数半][丈尺寸](?![子度])/,
+    archaic: /在下|小生|本座|老夫|贫道|妾身|奴婢|老爷|公子|姑娘|娘子|相公|夫君|兄台|大侠|掌柜|小二|客官|施主|谨遵|请缨|发落|差遣|恩典|谢恩|叩谢|老天爷|菩萨|阎王|投胎|和尚|道观|银两|铜板|文钱|锦袍|长衫|襦裙|发簪|玉佩|绣鞋|宣纸|毛笔|八仙桌|太师椅|时辰|一炷香|一盏茶|三更|半晌|晌午|作揖|抱拳|拱手|福身|叩首|万福|衙门|捕快|府衙|知府|县令|镖局|客栈|书生|秀才|丫鬟|小厮|罢了|甚好|莫要|岂敢|休得|何须|江湖|武林|内力|真气|经脉|丹田|轻功|卧薪尝胆|红颜祸水|三从四德|守株待兔|[一二三四五六七八九十两几数半][丈尺寸](?![子度])/,
 };
 
 // 纯函数：自动模式发 LLM 调用前的成本门。返回 false = 不值得调用（直接跳过该回复）。
@@ -2662,6 +2664,11 @@ function getSettings() {
     if (!s.promptOverrides || typeof s.promptOverrides !== 'object' || Array.isArray(s.promptOverrides)) s.promptOverrides = {};
     // 自定义人格归一（幂等）：坏形条目丢弃、超限截断——UI 与解析读到的恒是干净数组。
     s.customPersonas = normalizeCustomPersonas(s.customPersonas);
+    // ⚡ 快捷指令（二创版 2.2）：缺键 = 预置那几条（给本设置对象自己的新数组，改它不会污染 QP_DEFAULTS）；
+    // [] = 用户删光了，不再补（「↺ 补回预置的」可手动补）。坏形条目在读的地方过滤，这里不重建数组——
+    // 管理页的输入框直接改数组里的对象，重建会让它们改到旧对象上。
+    if (!Array.isArray(s.quickPrompts)) s.quickPrompts = QP_DEFAULTS.map((q) => ({ ...q }));
+    else if (s.quickPrompts.length > QP_MAX) s.quickPrompts.length = QP_MAX;
     // 📋 模板库归一（幂等）：坏形 / 空名 / 重名条目清掉；顺带把 defaults 里那个【按引用赋过来的空数组】
     // 换成本设置对象自己的新数组——否则往它里面写会顺着引用污染 defaults（同 customPersonas 那行的用意）。
     s.fixTemplates = normalizeFixTemplates(s.fixTemplates);
@@ -2857,6 +2864,277 @@ function closeConnPicker() {
 }
 
 // 输入框上方的切换栏：一颗药丸显示当前连接，点开列出连接存档，点一下就切换。
+/* ------------------------------------------------------------------ *
+ * ⚡ 快捷指令（二创版 2.2）：存好的话，一键发给当前模式。显示在输入框上方、模型右边：
+ * 宽窗口直接排成一行（点名字 = 直接发送；放不下就左右滑，⋯ 打开完整列表）；窄窗口 / 手机收成一个
+ * 「⚡ 快捷指令」按钮，点开往上弹出列表（行尾 ✎ = 先填进输入框改一改再发）。宽窄按模型栏自身的宽度判断
+ * （CSS 容器查询 so-mbar），不按设备。每个模式只显示自己的；管理在设置的「快捷指令」页。
+ * 存在 settings.quickPrompts = [{ id, mode, label, text }]：缺键 = 预置（QP_DEFAULTS），[] = 用户删光了、不再补。
+ * text 里的 {{user}} / {{char}} 等宏在发送 / 填入时才展开，所以同一条指令换卡也能用。
+ * ------------------------------------------------------------------ */
+const QP_MODES = [
+    ['chat', '普通聊天'], ['diagnose', '诊断'], ['lorebook', '世界书'],
+    ['advisor', '剧情参谋'], ['fix', '校正'], ['builder', '角色工坊'],
+];
+const QP_MAX = 60;
+const QP_DEFAULTS = [
+    // 用户反馈（西幻 / 穿越卡总冒古风词）：一步到位的手动校正。外来者例外与用户预设「西幻去中化」条目一致。
+    { id: 'qp-kill-archaic', mode: 'fix', label: '杀古风',
+        text: '杀古风：按当前所在的世界（看正文里的地名、人名、风物判断），一次改完这条回复。\n- 不动：{{user}}和系统的对白与内心活动；{{user}}从别的世界带来的能力、法宝、功法名（写在旁白里也一样）；当前世界自己的专有名词；设定里本来就有的东方元素。\n- 要改：本地人物的对白和旁白里混进来的中式自称与称谓（妾身、奴婢、小的、老爷、公子、姑娘、掌柜、客官……）、宫廷奴仆腔（谨遵、请缨、听凭发落、差遣、恩典、谢恩……）、古白话语气词（罢了、也罢、莫要、休得……）、中式计时货币度量（时辰、一炷香、银两、尺、丈……）、中式宗教用语（老天爷、菩萨、阎王……）、带中国历史典故的成语，换成这个世界的人会用的说法；原作自带的说法优先（比如被遗忘的国度用金币、英尺、费伦诸神的名字）。\n- 只换词，剧情、动作、语气和句子结构不变；拿不准的保留原样。当前世界本来就是东方 / 古风背景的话，原样返回。' },
+];
+let qpMenuOpen = false;
+let qpManageMode = null;   // 设置「快捷指令」页当前在看哪个模式；null = 跟随当前模式
+
+function qpModeLabel(mode) {
+    const m = QP_MODES.find((x) => x[0] === mode);
+    return m ? m[1] : mode;
+}
+function qpNewId() {
+    return 'qp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+// 这个模式下能用的（内容为空的条目——比如管理页里刚新建、还没写完的——不上栏）。
+function qpForMode(mode, s = getSettings()) {
+    return (Array.isArray(s.quickPrompts) ? s.quickPrompts : [])
+        .filter((q) => q && q.mode === mode && typeof q.text === 'string' && q.text.trim());
+}
+// 发送 / 填入前展开 {{user}} 等宏。
+function qpText(q) {
+    const raw = String((q && q.text) || '').trim();
+    try { return getCtx().substituteParams(raw); } catch (e) { return raw; }
+}
+function closeQpMenu() {
+    if (!qpMenuOpen) return;
+    qpMenuOpen = false;
+    renderModelBar();
+}
+// 点名字：直接发送。输入框里原来写了一半的话先让开、发完放回去（onSend 的同步段就读走并清空输入框）。
+// 正在生成时不发——此时按发送键的语义是「停止生成」，快捷指令绝不能顺手把它停掉。
+async function qpSend(q) {
+    qpMenuOpen = false;
+    renderModelBar();
+    if (!inputEl) return;
+    if (isGenerating) {
+        try { toastr.info('神谕还在回复，等它说完再点。', '快捷指令'); } catch (e) { /* toastr 缺席 */ }
+        return;
+    }
+    const text = qpText(q);
+    if (!text) return;
+    const draft = inputEl.value;
+    inputEl.value = text;
+    const sending = onSend();
+    if (draft.trim() && !inputEl.value) { inputEl.value = draft; autoGrowInput(); }
+    await sending;
+}
+// 点 ✎：填进输入框（已有文字时另起一行接在后面），改一改再发。
+function qpFill(q) {
+    qpMenuOpen = false;
+    renderModelBar();
+    if (!inputEl) return;
+    const text = qpText(q);
+    const cur = inputEl.value;
+    inputEl.value = cur.trim() ? cur.replace(/\s+$/, '') + '\n' + text : text;
+    autoGrowInput();
+    inputEl.focus();
+    try { inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length); } catch (e) { /* ignore */ }
+}
+// 把输入框里的话存成当前模式的一条快捷指令。
+async function qpSaveFromInput() {
+    qpMenuOpen = false;
+    renderModelBar();
+    const text = inputEl ? inputEl.value.trim() : '';
+    if (!text) {
+        try { toastr.info('先在输入框里写好要存的话，再点这里。', '快捷指令'); } catch (e) { /* ignore */ }
+        return;
+    }
+    const mode = currentOracleMode();
+    const name = await uiPrompt(`给这条快捷指令起个名字（存到「${qpModeLabel(mode)}」模式）：`, text.slice(0, 12));
+    if (name == null) return;
+    const s = getSettings();
+    s.quickPrompts.push({ id: qpNewId(), mode, label: name.trim() || text.slice(0, 12), text });
+    save();
+    renderModelBar();
+    if (win && win.querySelector('#so-settings.open')) renderQpManager();
+    try { toastr.success(`已存为「${qpModeLabel(mode)}」模式的快捷指令。`, '快捷指令'); } catch (e) { /* ignore */ }
+}
+// 模型栏右侧：宽 = 一排名字 + ⋯；窄 = 一个「⚡ 快捷指令」按钮（两套都渲染，CSS 容器查询决定显示哪套）。
+function renderQuickPrompts(bar) {
+    const mode = currentOracleMode();
+    const items = qpForMode(mode);
+    const chips = document.createElement('div');
+    chips.className = 'so-qp-chips';
+    for (const q of items) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'so-qp-chip';
+        b.title = '点一下直接发送：\n' + q.text;
+        b.innerHTML = '<i class="fa-solid fa-bolt"></i><span></span>';
+        b.querySelector('span').textContent = q.label;
+        b.addEventListener('click', (e) => { e.stopPropagation(); qpSend(q); });
+        chips.appendChild(b);
+    }
+    const toggleMenu = (e) => {
+        e.stopPropagation();
+        qpMenuOpen = !qpMenuOpen;
+        modelMenuOpen = false;
+        renderModelBar();
+    };
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'so-qp-more';
+    more.title = items.length ? '全部快捷指令 / 存新的 / 管理' : '快捷指令：把常说的话存起来，一键发送';
+    more.setAttribute('aria-haspopup', 'true');
+    more.setAttribute('aria-expanded', qpMenuOpen ? 'true' : 'false');
+    more.innerHTML = items.length ? '<i class="fa-solid fa-ellipsis"></i>' : '<i class="fa-solid fa-bolt"></i>';
+    more.addEventListener('click', toggleMenu);
+    const tog = document.createElement('button');
+    tog.type = 'button';
+    tog.className = 'so-qp-toggle';
+    tog.setAttribute('aria-haspopup', 'true');
+    tog.setAttribute('aria-expanded', qpMenuOpen ? 'true' : 'false');
+    tog.innerHTML = '<i class="fa-solid fa-bolt"></i><span>快捷指令</span>' + (items.length ? `<span class="so-qp-count">${items.length}</span>` : '') + '<i class="fa-solid fa-chevron-up"></i>';
+    tog.addEventListener('click', toggleMenu);
+    bar.append(chips, more, tog);
+    if (!qpMenuOpen) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'so-model-menu so-qp-menu';
+    menu.setAttribute('role', 'menu');
+    const head = document.createElement('div');
+    head.className = 'so-model-menu-group';
+    head.textContent = `快捷指令 · ${qpModeLabel(mode)}（点名字直接发送，✎ 先填进输入框）`;
+    menu.appendChild(head);
+    if (!items.length) {
+        const none = document.createElement('div');
+        none.className = 'so-model-menu-empty';
+        none.textContent = '这个模式还没有快捷指令。在输入框写好要说的话，点下面「存成快捷指令」；或到设置的「快捷指令」页新建。';
+        menu.appendChild(none);
+    }
+    for (const q of items) {
+        const row = document.createElement('div');
+        row.className = 'so-qp-row';
+        const send = document.createElement('button');
+        send.type = 'button';
+        send.className = 'so-model-opt';
+        send.setAttribute('role', 'menuitem');
+        send.title = '直接发送';
+        send.innerHTML = '<span class="so-model-opt-mark"><i class="fa-solid fa-bolt"></i></span><span class="so-model-opt-main"><span class="so-model-opt-name"></span><span class="so-model-opt-sub"></span></span>';
+        send.querySelector('.so-model-opt-name').textContent = q.label;
+        send.querySelector('.so-model-opt-sub').textContent = q.text.replace(/\s+/g, ' ').trim();
+        send.addEventListener('click', (e) => { e.stopPropagation(); qpSend(q); });
+        const fill = document.createElement('button');
+        fill.type = 'button';
+        fill.className = 'so-qp-fill';
+        fill.title = '先填进输入框，改一改再发';
+        fill.setAttribute('aria-label', `把「${q.label}」填进输入框`);
+        fill.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+        fill.addEventListener('click', (e) => { e.stopPropagation(); qpFill(q); });
+        row.append(send, fill);
+        menu.appendChild(row);
+    }
+    const sep = document.createElement('div');
+    sep.className = 'so-model-menu-sep';
+    menu.appendChild(sep);
+    const action = (icon, label, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'so-model-opt';
+        b.setAttribute('role', 'menuitem');
+        b.innerHTML = `<span class="so-model-opt-mark"><i class="fa-solid ${icon}"></i></span><span class="so-model-opt-main"><span class="so-model-opt-name"></span></span>`;
+        b.querySelector('.so-model-opt-name').textContent = label;
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+        menu.appendChild(b);
+    };
+    action('fa-plus', '把输入框里的话存成快捷指令', qpSaveFromInput);
+    action('fa-gear', '管理快捷指令…', () => { qpMenuOpen = false; qpManageMode = mode; toggleSettings(true, 'qp'); });
+    bar.appendChild(menu);
+}
+
+// 设置「快捷指令」页：按模式分开管理（名字 / 内容 / 所属模式 / 顺序 / 删除）。改动即存、模型栏即时跟着变。
+function renderQpManager() {
+    if (!win) return;
+    const segEl = win.querySelector('#so-qp-modes');
+    const listEl = win.querySelector('#so-qp-list');
+    if (!segEl || !listEl) return;
+    const s = getSettings();
+    const all = s.quickPrompts;
+    const mode = qpManageMode || currentOracleMode();
+    segEl.innerHTML = '';
+    for (const [m, label] of QP_MODES) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'so-pgroup' + (m === mode ? ' active' : '');
+        b.textContent = label;
+        const n = all.filter((q) => q && q.mode === m).length;
+        if (n) {
+            const c = document.createElement('span');
+            c.className = 'so-pgroup-count';
+            c.textContent = String(n);
+            b.appendChild(c);
+        }
+        b.addEventListener('click', () => { qpManageMode = m; renderQpManager(); });
+        segEl.appendChild(b);
+    }
+    const sum = win.querySelector('#so-qp-summary');
+    if (sum) sum.textContent = all.length ? `共 ${all.length} 条` : '';
+    listEl.innerHTML = '';
+    const items = all.filter((q) => q && q.mode === mode);
+    if (!items.length) {
+        const none = document.createElement('div');
+        none.className = 'so-hint';
+        none.textContent = `「${qpModeLabel(mode)}」模式还没有快捷指令，点下面「＋ 新建一条」。`;
+        listEl.appendChild(none);
+    }
+    const changed = () => { save(); renderModelBar(); };
+    const move = (q, dir) => {
+        const idx = all.indexOf(q);
+        let j = idx + dir;
+        while (j >= 0 && j < all.length && !(all[j] && all[j].mode === q.mode)) j += dir;   // 跳到同模式的邻居
+        if (j < 0 || j >= all.length) return;
+        [all[idx], all[j]] = [all[j], all[idx]];
+        changed();
+        renderQpManager();
+    };
+    items.forEach((q, i) => {
+        const card = document.createElement('div');
+        card.className = 'so-qp-card';
+        card.innerHTML = '<div class="so-qp-card-head"><input type="text" class="so-qp-name" maxlength="30" placeholder="名字（显示在按钮上）">'
+            + '<select class="so-qp-mode"></select>'
+            + '<button type="button" class="so-icon-btn so-qp-up" title="上移"><i class="fa-solid fa-arrow-up"></i></button>'
+            + '<button type="button" class="so-icon-btn so-qp-down" title="下移"><i class="fa-solid fa-arrow-down"></i></button>'
+            + '<button type="button" class="so-icon-btn so-qp-del" title="删除"><i class="fa-solid fa-trash"></i></button></div>'
+            + '<textarea class="so-qp-text" rows="5" spellcheck="false" placeholder="点一下就发出去的那段话。可以写 {{user}}、{{char}}，发送时换成当前的名字。"></textarea>';
+        const nameEl = card.querySelector('.so-qp-name');
+        nameEl.value = q.label || '';
+        nameEl.addEventListener('input', () => { q.label = nameEl.value; changed(); });
+        nameEl.addEventListener('blur', () => { if (!nameEl.value.trim()) { q.label = String(q.text || '').trim().slice(0, 12) || '未命名'; nameEl.value = q.label; changed(); } });
+        const sel = card.querySelector('.so-qp-mode');
+        for (const [m, label] of QP_MODES) {
+            const o = document.createElement('option');
+            o.value = m; o.textContent = label;
+            sel.appendChild(o);
+        }
+        sel.value = q.mode;
+        sel.addEventListener('change', () => { q.mode = sel.value; changed(); renderQpManager(); });
+        const ta = card.querySelector('.so-qp-text');
+        ta.value = q.text || '';
+        ta.addEventListener('input', () => { q.text = ta.value; changed(); });
+        const up = card.querySelector('.so-qp-up');
+        const down = card.querySelector('.so-qp-down');
+        up.disabled = i === 0;
+        down.disabled = i === items.length - 1;
+        up.addEventListener('click', () => move(q, -1));
+        down.addEventListener('click', () => move(q, 1));
+        card.querySelector('.so-qp-del').addEventListener('click', async () => {
+            if (!(await uiConfirm(`删除快捷指令「${q.label || '未命名'}」？`))) return;
+            const idx = all.indexOf(q);
+            if (idx >= 0) all.splice(idx, 1);
+            changed();
+            renderQpManager();
+        });
+        listEl.appendChild(card);
+    });
+}
+
 let modelMenuOpen = false;
 function renderModelBar() {
     const bar = win && win.querySelector('#so-model-bar');
@@ -2886,8 +3164,9 @@ function renderModelBar() {
     pill.innerHTML = '<i class="fa-solid fa-plug"></i><span class="so-model-pill-name"></span><span class="so-model-pill-sub"></span><i class="fa-solid fa-chevron-up"></i>';
     pill.querySelector('.so-model-pill-name').textContent = name;
     pill.querySelector('.so-model-pill-sub').textContent = sub;
-    pill.addEventListener('click', (e) => { e.stopPropagation(); modelMenuOpen = !modelMenuOpen; renderModelBar(); });
+    pill.addEventListener('click', (e) => { e.stopPropagation(); modelMenuOpen = !modelMenuOpen; qpMenuOpen = false; renderModelBar(); });
     bar.appendChild(pill);
+    renderQuickPrompts(bar);   // ⚡ 二创版 2.2：模型右边的快捷指令
     if (!modelMenuOpen) return;
 
     const menu = document.createElement('div');
@@ -2936,7 +3215,7 @@ function closeModelMenu() {
 }
 
 // ---------- 设置面板：分页 ----------
-const SETTINGS_TABS = ['conn', 'ctx', 'persona', 'prompt', 'ui'];
+const SETTINGS_TABS = ['conn', 'ctx', 'persona', 'prompt', 'qp', 'ui'];
 const SETTINGS_TAB_KEY = 'so.settings.tab';   // 记住上次打开的页（只存在本浏览器）
 let settingsTab = 'conn';
 try {
@@ -2956,6 +3235,7 @@ function setSettingsTab(tab) {
     }
     for (const p of win.querySelectorAll('.so-set-page')) p.classList.toggle('active', p.dataset.tab === tab);
     if (tab === 'prompt') renderPromptNav();
+    if (tab === 'qp') renderQpManager();
 }
 
 // 打开 / 关闭设置（open 不传 = 切换）。打开时铺满窗口，并刷新几处要现取的列表。
@@ -2965,6 +3245,7 @@ function toggleSettings(open, tab) {
     const on = panel.classList.toggle('open', open);
     win.classList.toggle('so-settings-open', on);   // CSS 据此让出消息区、输入区与模式栏
     modelMenuOpen = false;
+    qpMenuOpen = false;
     renderModelBar();
     if (!on) return;
     refreshProfiles();
@@ -18780,6 +19061,7 @@ function buildWindow() {
                 <button type="button" class="so-set-tab" data-tab="ctx" role="tab"><i class="fa-solid fa-layer-group"></i>上下文</button>
                 <button type="button" class="so-set-tab" data-tab="persona" role="tab"><i class="fa-solid fa-masks-theater"></i>人格</button>
                 <button type="button" class="so-set-tab" data-tab="prompt" role="tab"><i class="fa-solid fa-file-pen"></i>提示词</button>
+                <button type="button" class="so-set-tab" data-tab="qp" role="tab"><i class="fa-solid fa-bolt"></i>快捷指令</button>
                 <button type="button" class="so-set-tab" data-tab="ui" role="tab"><i class="fa-solid fa-palette"></i>界面</button>
                 <span class="so-set-tabbar-spacer"></span>
                 <button type="button" class="so-icon-btn" id="so-settings-close" title="关闭设置，回到聊天"><i class="fa-solid fa-xmark"></i></button>
@@ -18981,6 +19263,19 @@ function buildWindow() {
                         <textarea id="so-sysprompt" rows="8" spellcheck="false"></textarea>
                         <div class="so-pvars" id="so-pvars"></div>
                         <div class="so-hint" id="so-sysprompt-which-hint"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="so-set-page" data-tab="qp" role="tabpanel">
+                <div class="so-set-section">
+                    <div class="so-set-title"><i class="fa-solid fa-bolt"></i>快捷指令<span class="so-set-title-aside" id="so-qp-summary"></span></div>
+                    <div class="so-hint">显示在输入框上方、模型右边：点名字直接发送，点 ✎ 先填进输入框。每个模式只显示自己的。内容里可以写 {{user}}、{{char}}，发送时换成当前的名字。</div>
+                    <div class="so-pgroups" id="so-qp-modes"></div>
+                    <div id="so-qp-list"></div>
+                    <div class="so-qp-actions">
+                        <button type="button" class="so-mini-btn" id="so-qp-add"><i class="fa-solid fa-plus"></i> 新建一条</button>
+                        <button type="button" class="so-mini-btn" id="so-qp-restore" title="把预置的快捷指令（如「杀古风」）补回来，已有的不动">↺ 补回预置的</button>
                     </div>
                 </div>
             </div>
@@ -19745,16 +20040,35 @@ function bindControls() {
     // 设置分页 + 右上角关闭
     for (const b of win.querySelectorAll('.so-set-tab')) b.addEventListener('click', () => setSettingsTab(b.dataset.tab));
     win.querySelector('#so-settings-close').addEventListener('click', () => toggleSettings(false));
-    // 切换栏的菜单、设置里的存档弹出框：点别处或按 Esc 收起。
+    // ⚡ 设置「快捷指令」页：新建 / 补回预置的。
+    win.querySelector('#so-qp-add').addEventListener('click', () => {
+        const mode = qpManageMode || currentOracleMode();
+        getSettings().quickPrompts.push({ id: qpNewId(), mode, label: '新指令', text: '' });
+        save();
+        renderQpManager();
+        const names = win.querySelectorAll('#so-qp-list .so-qp-name');
+        const last = names[names.length - 1];
+        if (last) { last.focus(); last.select(); }
+    });
+    win.querySelector('#so-qp-restore').addEventListener('click', () => {
+        const list = getSettings().quickPrompts;
+        const missing = QP_DEFAULTS.filter((d) => !list.some((q) => q && q.id === d.id));
+        for (const d of missing) list.push({ ...d });
+        if (missing.length) { save(); renderQpManager(); renderModelBar(); }
+        try { toastr.info(missing.length ? `补回了 ${missing.length} 条预置的快捷指令。` : '预置的快捷指令都还在。', '快捷指令'); } catch (e) { /* ignore */ }
+    });
+    // 切换栏的菜单、快捷指令列表、设置里的存档弹出框：点别处或按 Esc 收起。
     document.addEventListener('click', (e) => {
         const inside = (sel) => !!(e.target && e.target.closest && e.target.closest(sel));
         if (modelMenuOpen && !inside('#so-model-bar')) closeModelMenu();
+        if (qpMenuOpen && !inside('#so-model-bar')) closeQpMenu();
         // 删存档时弹出的确认框（酒馆的 dialog.popup）也算「里面」：确认完弹出框还开着，可以接着删
         if (connPickerOpen && !inside('#so-conn-preset-list, .popup, dialog')) closeConnPicker();
     });
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         closeModelMenu();
+        closeQpMenu();
         closeConnPicker();
     });
     // A5：工具移到标题栏开关——开时立刻搬（幂等）；关时提示刷新恢复（⋯ 包裹已删，重建靠 buildWindow）。
@@ -21766,6 +22080,8 @@ function setOracleMode(target) {
     soApplyConvoIoVisual(null);
     // 每模式独立房间：切模式即把可见侧聊换到该模式的房间（先落盘现流、再重载）。换房时 loadConvoForChat 已重画
     // （含空态）；没换房（同房间 / 开关关）才手动刷新空态——每模式自带引导语 + 示例 chip。
+    qpMenuOpen = false;
+    renderModelBar();   // ⚡ 快捷指令按模式显示
     const swapped = syncConvoStream();
     if (!swapped && messagesEl && !convo.length) { messagesEl.innerHTML = ''; renderEmptyState(); }
 }
