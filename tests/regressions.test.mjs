@@ -58,6 +58,461 @@ async function read(ctx, signal) {
     return { text, deltas };
 }
 
+// 五种预设的固定样例在 640f601 上冻结；日常测试不读取 Git。
+const presetModes = ['Lorebook', 'Fix', 'Advisor', 'Diagnose', 'Builder'];
+const textItem = (content, role) => ({ kind: 'text', content, role });
+const historyItem = { kind: 'marker', identifier: 'chatHistory' };
+const presetShapes = [
+    [textItem('前 {{user}}'), textItem('后', 'assistant')],
+    [textItem('前'), historyItem, textItem('后', 'assistant')],
+    [historyItem, textItem('中'), historyItem, textItem('尾')],
+    ['personaDescription', 'charDescription', 'charPersonality', 'scenario', 'worldInfoBefore',
+        'worldInfoAfter', 'dialogueExamples', 'chatHistory', 'unknown'].map((identifier) => ({ kind: 'marker', identifier })),
+    [textItem(''), textItem(' \n'), textItem(null), textItem('{{user}}', 'user')],
+    [], null,
+];
+function presetFixture(mode, shape, directive, over, blank, guard = true) {
+    let fixCalls = 0;
+    const ctx = {
+        ENABLE_OFFSTAGE_GUARD: guard && !blank,
+        getCtx: () => ({ substituteParams: (s) => s.replaceAll('{{user}}', '小明'),
+            getCharacterCardFields: () => ({ persona: '人格', description: '角色', personality: '性格', scenario: '场景', mesExamples: '示例' }) }),
+        getCuratedSnapshot: () => presetShapes[shape] == null ? null : { items: presetShapes[shape] },
+        convoForPrompt: () => blank ? [] : [{ role: 'user', content: '问 {{user}}' }, { role: 'assistant', content: '答' }],
+        buildLorebookPrompt: () => blank ? '' : '世界书',
+        buildFixPrompt: () => { fixCalls++; return blank ? '' : '校正'; },
+        buildAdvisorPrompt: () => blank ? '' : '参谋', buildBuilderPrompt: () => blank ? '' : '工坊',
+        lbSnapshotMsg: () => ({ role: 'system', content: blank ? '' : '快照 {{user}}' }),
+        P: () => '参谋身份', wiBefore: '世界前', wiAfter: '世界后',
+    };
+    const names = ['subst', 'pushMsg', 'expandMarker', ...presetModes.map((m) => `build${m}PresetMessages`)];
+    if (/function walkPresetItems\(/.test(source)) names.push('walkPresetItems');
+    vm.runInNewContext(functions(names), ctx);
+    const s = { sysPromptPresetName: 'test' };
+    const d = [undefined, '', 'x', null][directive];
+    const override = over ? { block: blank ? '' : '覆盖参谋', tail: blank ? [] : [{ role: 'user', content: '覆盖尾 {{user}}' }] } : undefined;
+    const result = mode === 'Diagnose' ? ctx.buildDiagnosePresetMessages(s, blank ? '' : '诊断', d)
+        : mode === 'Advisor' ? ctx.buildAdvisorPresetMessages(s, override)
+        : ctx[`build${mode}PresetMessages`](s, d);
+    return [JSON.stringify(result), fixCalls];
+}
+
+const PRESET_EXPECTED = [
+    [["Lorebook",0,0,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",0,0,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",1,0,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",1,0,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",2,0,false,false],"[{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",2,0,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"},{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",3,0,false,false],"[{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",3,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",4,0,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",4,0,false,true],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",5,0,false,false],"[{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",5,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Lorebook",6,0,false,false],"[{\"role\":\"system\",\"content\":\"世界书\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"快照 {{user}}\"}]",0],
+    [["Lorebook",6,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Fix",0,0,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",0,1,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"校正\"}]",1],
+    [["Fix",0,2,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",0,3,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",0,0,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",0,1,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",0,2,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",0,3,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,0,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,1,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,2,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,3,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,0,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,1,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,2,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",1,3,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",1],
+    [["Fix",2,0,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,1,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,2,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,3,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,0,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,1,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",2,3,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",1],
+    [["Fix",3,0,false,false],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",3,1,false,false],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"},{\"role\":\"system\",\"content\":\"校正\"}]",1],
+    [["Fix",3,2,false,false],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",3,3,false,false],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",3,0,false,true],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"}]",1],
+    [["Fix",3,1,false,true],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"}]",1],
+    [["Fix",3,2,false,true],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",3,3,false,true],"[{\"role\":\"system\",\"content\":\"人格\"},{\"role\":\"system\",\"content\":\"角色\"},{\"role\":\"system\",\"content\":\"性格\"},{\"role\":\"system\",\"content\":\"场景\"},{\"role\":\"system\",\"content\":\"世界前\"},{\"role\":\"system\",\"content\":\"世界后\"},{\"role\":\"system\",\"content\":\"示例\"}]",1],
+    [["Fix",4,0,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",4,1,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"校正\"}]",1],
+    [["Fix",4,2,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",4,3,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",4,0,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",1],
+    [["Fix",4,1,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",1],
+    [["Fix",4,2,false,true],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",4,3,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",1],
+    [["Fix",5,0,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",5,1,false,false],"[{\"role\":\"system\",\"content\":\"校正\"}]",1],
+    [["Fix",5,2,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",5,3,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",5,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",2],
+    [["Fix",5,1,false,true],"[{\"role\":\"system\",\"content\":\"\"},{\"role\":\"user\",\"content\":\"\"}]",2],
+    [["Fix",5,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",5,3,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",2],
+    [["Fix",6,0,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",6,1,false,false],"[{\"role\":\"system\",\"content\":\"校正\"}]",1],
+    [["Fix",6,2,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",6,3,false,false],"[{\"role\":\"system\",\"content\":\"校正\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",1],
+    [["Fix",6,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",2],
+    [["Fix",6,1,false,true],"[{\"role\":\"system\",\"content\":\"\"},{\"role\":\"user\",\"content\":\"\"}]",2],
+    [["Fix",6,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"}]",1],
+    [["Fix",6,3,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",2],
+    [["Advisor",0,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",0,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",0,0,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",0,0,true,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",1,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",1,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",1,0,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",1,0,true,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",2,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",2,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",2,0,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",2,0,true,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",3,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",3,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",3,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",3,0,true,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",4,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",4,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",4,0,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Advisor",4,0,true,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Advisor",5,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",5,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",5,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",5,0,true,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",6,0,false,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",6,0,true,false],"[{\"role\":\"system\",\"content\":\"参谋身份\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",6,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",6,0,true,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",0,0,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",0,1,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"诊断\"}]",0],
+    [["Diagnose",0,2,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",0,3,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",0,0,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",0,1,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",0,2,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",0,3,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,0,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,1,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,2,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,3,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,0,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,1,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,2,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",1,3,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Diagnose",2,0,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,1,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,2,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,3,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,0,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,1,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",2,3,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Diagnose",3,0,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",3,1,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"}]",0],
+    [["Diagnose",3,2,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",3,3,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",3,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",3,1,false,true],"[{\"role\":\"system\",\"content\":\"\"},{\"role\":\"user\",\"content\":\"\"}]",0],
+    [["Diagnose",3,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",3,3,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",4,0,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",4,1,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"诊断\"}]",0],
+    [["Diagnose",4,2,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",4,3,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",4,0,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Diagnose",4,1,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Diagnose",4,2,false,true],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",4,3,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Diagnose",5,0,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",5,1,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"}]",0],
+    [["Diagnose",5,2,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",5,3,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",5,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",5,1,false,true],"[{\"role\":\"system\",\"content\":\"\"},{\"role\":\"user\",\"content\":\"\"}]",0],
+    [["Diagnose",5,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",5,3,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",6,0,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",6,1,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"}]",0],
+    [["Diagnose",6,2,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",6,3,false,false],"[{\"role\":\"system\",\"content\":\"诊断\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Diagnose",6,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Diagnose",6,1,false,true],"[{\"role\":\"system\",\"content\":\"\"},{\"role\":\"user\",\"content\":\"\"}]",0],
+    [["Diagnose",6,2,false,true],"[{\"role\":\"user\",\"content\":\"x\"}]",0],
+    [["Diagnose",6,3,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Builder",0,0,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Builder",0,0,false,true],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Builder",1,0,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Builder",1,0,false,true],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Builder",2,0,false,false],"[{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Builder",2,0,false,true],"[{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Builder",3,0,false,false],"[{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Builder",3,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Builder",4,0,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Builder",4,0,false,true],"[{\"role\":\"user\",\"content\":\"小明\"}]",0],
+    [["Builder",5,0,false,false],"[{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Builder",5,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Builder",6,0,false,false],"[{\"role\":\"system\",\"content\":\"工坊\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Builder",6,0,false,true],"[{\"role\":\"system\",\"content\":\"\"}]",0],
+    [["Advisor",0,0,false,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",0,0,true,false,false],"[{\"role\":\"system\",\"content\":\"前 小明\"},{\"role\":\"assistant\",\"content\":\"后\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",1,0,false,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",1,0,true,false,false],"[{\"role\":\"system\",\"content\":\"前\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"},{\"role\":\"assistant\",\"content\":\"后\"}]",0],
+    [["Advisor",2,0,false,false,false],"[{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",2,0,true,false,false],"[{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"},{\"role\":\"system\",\"content\":\"中\"},{\"role\":\"system\",\"content\":\"尾\"}]",0],
+    [["Advisor",3,0,false,false,false],"[{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",3,0,true,false,false],"[{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",4,0,false,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",4,0,true,false,false],"[{\"role\":\"user\",\"content\":\"小明\"},{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",5,0,false,false,false],"[{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",5,0,true,false,false],"[{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+    [["Advisor",6,0,false,false,false],"[{\"role\":\"system\",\"content\":\"参谋\"},{\"role\":\"user\",\"content\":\"问 {{user}}\"},{\"role\":\"assistant\",\"content\":\"答\"}]",0],
+    [["Advisor",6,0,true,false,false],"[{\"role\":\"system\",\"content\":\"覆盖参谋\"},{\"role\":\"user\",\"content\":\"覆盖尾 {{user}}\"}]",0],
+];
+
+test('五种预设逐字节固定期望：结构、空值、覆盖尾、身份头与校正求值次数', () => {
+    for (const [args, expected, calls] of PRESET_EXPECTED) {
+        assert.deepEqual(presetFixture(...args), [expected, calls], JSON.stringify(args));
+    }
+    assert.equal(PRESET_EXPECTED.length, 182, '固定期望矩阵不可缺项');
+});
+
+// 入口用真实函数；只替换模型、上下文和 DOM，计时器由测试显式触发。
+function sendHarness(settings, options = {}) {
+    const calls = [], paints = [], errors = [], timers = [], activeTimers = new Map();
+    let timerId = 0, rendered = '';
+    const ui = { textContent: '', isConnected: true, style: {},
+        classList: { add() {}, remove() {}, toggle() {} } };
+    const el = { isConnected: true, querySelector: () => ui };
+    const messages = [{ role: 'system', content: '系统' }, { role: 'user', content: '问题' }];
+    const context = { chat: [{ mes: '故事', is_user: false }] };
+    const builder = { brief: { raw: '汇总' }, draft: { target: 'npc-new', content: '原稿' } };
+    const noop = () => {};
+    const ctx = {
+        AbortController, console: { error: (...a) => errors.push(a), debug: noop },
+        setTimeout(fn, ms) { const id = ++timerId; timers.push(ms); activeTimers.set(id, fn); return id; },
+        clearTimeout(id) { activeTimers.delete(id); },
+        getSettings: () => settings, getCtx: () => context,
+        isGenerating: false, abortCtl: null, postReplyAbortCtl: null, postReplyCancelled: false,
+        POST_REPLY_CALL_TIMEOUT_MS: Number(source.match(/const POST_REPLY_CALL_TIMEOUT_MS = (\d+)/)[1]),
+        fixTargetProse: '原文', fixTargetIdx: 0, fixCaptured: { chatId: 'chat' },
+        fixScopeDecision: null, fixPieceDecision: null, fixPieceTable: null, ENABLE_FIX_PIECEWISE: false,
+        captureFixContext: async () => ({}), isFixSwipe: () => false,
+        getFixCfg: () => ({}), getEffectiveFixCfg: () => ({}), resolveFixModeCfg: () => ({ targets: {} }),
+        compileFixTargets: () => '目标', fixTargetOverrides: () => ({}), fixUsePresetFor: () => false,
+        presetCurationActive: () => false, maybeWrapJb: (m) => m,
+        buildFixPrompt: () => '校正', fixLandAutoDecisions: () => ({ stop: false }),
+        fixPreFilter: () => true, clampFixAutoMinChars: () => 0,
+        showAutoFixGenerating: noop, showAutoDiagGenerating: noop, dismissToast: noop,
+        parseFixedReply: () => null, fixFailureReason: () => ({ kind: 'ok' }),
+        replyExpectsMvu: () => false, addAutoFixNote: noop, fixOriginalReply: '原文',
+        cidSeq: 0, addMessage: () => el, showTyping: () => noop,
+        setGenerating(on) { ctx.isGenerating = on; }, scrollToBottom: noop, soFollowStream: true,
+        addSystemNote: noop, modeEntryNote: noop, win: null,
+        renderFixCard(_el, _ui, _entry, text) { rendered = text; return 'ok'; },
+        isUserAbort: (e) => e.name === 'AbortError',
+        diagnoseMode: false, lorebookMode: false, advisorMode: false, fixMode: false, builderMode: false,
+        warmLwbSummaryIfCold: async () => {}, buildWorldInfo: async () => '', sideChatScanBlob: async () => '',
+        ENABLE_WI_EJS_RENDER: false, assembleExternalWorld: () => '', buildMessages: () => messages,
+        soLastFinishReason: 'previous', stripMechanismBlocks: (s) => s, stripReasoningTags: (s) => s,
+        renderMarkdownOnly: () => null, convo: [], persistConvo: noop, addRetryControl: noop,
+        errChainMessage: (e) => e.message, explainProviderError: (s) => s,
+        getBuilderState: () => builder, buildBuilderContext: async () => {}, buildForgeMessages: () => messages,
+        convoStreamKey: 'room', liveForge: null, liveCondense: null,
+        paintForge(run) { paints.push(run.text); }, routeForgeReply: noop,
+        renderBuilderReplyHtml: () => null, parseCharDraft: () => ({ draft: null }),
+        ENABLE_DRAFT_CONDENSE: true, ENABLE_LIGHT_CONDENSE: false,
+        condenseStyleFlagged: () => true,
+        condenseSplitSections: () => ['甲', '乙', '丙'].map((text) => ({ names: [text], text })),
+        P: (id, vars) => id + (vars ? ':' + JSON.stringify(vars) : ''),
+        parseCondenseReply: () => ({ content: '分节' }), condenseAssemble: () => ({ content: '合稿' }),
+        parseCondenseOps: () => ({ ops: [] }), applyCondenseOps: () => ({ content: '精简', applied: 0, vetoed: [] }),
+        condenseGuards: () => ({ pass: true, ratio: 0.5 }), setBuilderState: noop, refreshDraftCard: noop,
+        getMvu: async () => ({ getMvuData: () => ({}) }), getMvuStatData: async () => ({}),
+        awaitMvuIdle: async () => {}, postReplyShouldStop: () => false,
+        ENABLE_SCHEMA_DIAG: !!options.diagRetry, ENABLE_DIAG_FLOOR_SEED: false,
+        maybeRunSaveHealth: async () => {}, diagPickerActive: () => false, wiContextMode: () => 'off',
+        collectMvuUpdateRules: async () => [], diagStatKey: () => 'stat', chatIdentityKey: () => 'chat',
+        resolveAutoTargetMessage: () => ({ idx: 0, text: '故事' }), extractUpdateBlock: () => '',
+        diagGateProbe: () => ({ executed: false, deadBlock: false }), buildDiagnosePromptFrom: () => '诊断',
+        diagParseFailReason: () => ({ code: 'unparsed', detail: '' }),
+        diagSchemaRetryRound: async (_text, _md, _s, msgs, retry) => ({
+            finalText: await retry([...msgs, { role: 'user', content: '重试' }]), schemaRetried: true,
+        }),
+        diagShownPatch: (_r, patch) => patch, AUTO_DIAGNOSE_WRITE_BACK: false,
+        notifyAutoDiagnose: noop, mvuMsgOpts: () => ({}),
+    };
+    for (const [kind, stream] of [['direct', false], ['directStream', true], ['profile', false], ['profileStream', true]]) {
+        const name = { direct: 'callDirect', directStream: 'streamDirect', profile: 'callProfile', profileStream: 'callProfileStream' }[kind];
+        ctx[name] = async (...args) => {
+            const direct = kind.startsWith('direct');
+            const signal = args[direct ? 3 : 4];
+            const body = direct ? args[2] : { messages: args[1], max_tokens: args[2], ...args[3] };
+            const call = { kind, args, body, signal, stream, updates: [] };
+            calls.push(call);
+            options.onCall?.(ctx, call);
+            if (options.hold) return new Promise((_resolve, reject) => {
+                const abort = () => reject(Object.assign(new Error('stopped'), { name: 'AbortError' }));
+                if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+            });
+            if (stream) for (const text of direct ? ['A', 'B'] : ['A', 'AB']) {
+                args.at(-1)(text);
+                call.updates.push(ui.textContent);
+            }
+            if (options.failure) throw options.failure;
+            return 'AB';
+        };
+    }
+    vm.runInNewContext(functions(['soCallModel', 'fixEffMaxTokens', 'fixCallTransport', 'resolveEndpointUrl', 'normalizeUrl',
+        'runFixByTargets', 'runAutoFix', 'beginPostReplyCall', 'cancelPostReply', 'stopGeneration',
+        'generateReply', 'gemini3MaxTokensFloor', 'runForge', 'runCondenseDepth', 'runAutoDiagnose']), ctx);
+    return { ctx, calls, messages, paints, errors, timers, activeTimers, ui, rendered: () => rendered };
+}
+
+const sendSettings = (mode, stream, sendTemperature) => ({
+    mode, stream, sendTemperature, endpoint: 'https://mock/v1', model: 'gemini-3-test',
+    apiKey: 'test-key', profileId: 'profile', maxTokens: 1024, fixMaxTokens: 8192, bldMaxTokens: 20000, temperature: 0.4,
+});
+
+function checkCaptured(h, s, expectedMessages, tokens, stream) {
+    assert.equal(h.calls.length, expectedMessages.length);
+    h.calls.forEach((call, i) => {
+        assert.equal(call.kind, s.mode + (stream ? 'Stream' : ''));
+        assert.equal(call.stream, stream);
+        assert.deepEqual(structuredClone(call.body), {
+            ...(s.mode === 'direct' ? { model: s.model } : {}), messages: expectedMessages[i], max_tokens: tokens,
+            ...(s.sendTemperature ? { temperature: 0.4 } : {}),
+        });
+        assert.equal(call.signal instanceof AbortSignal, true);
+        assert.equal(call.signal.aborted, false);
+        if (s.mode === 'direct') assert.deepEqual(call.args.slice(0, 2), ['https://mock/v1/chat/completions', 'test-key']);
+        else assert.equal(call.args[0], 'profile');
+    });
+    assert.deepEqual(h.errors, []);
+    assert.equal(h.activeTimers.size, 0);
+    assert.equal(h.ctx.abortCtl, null);
+    assert.equal(h.ctx.postReplyAbortCtl, null);
+}
+
+test('发送入口参数矩阵：主回复、按目标校正、自动校正、锻造、深度精简、自动诊断及重写', async () => {
+    for (const mode of ['direct', 'profile']) for (const stream of [false, true]) for (const temperature of [false, true]) {
+        const s = sendSettings(mode, stream, temperature);
+        for (const entry of ['generateReply', 'runFixByTargets', 'runAutoFix', 'runForge', 'runCondenseDepth', 'runAutoDiagnose', 'diagRetry']) {
+            const h = sendHarness(s, { diagRetry: entry === 'diagRetry', onCall(ctx, call) {
+                assert.equal(call.signal, entry.startsWith('runAuto') || entry === 'diagRetry' ? ctx.postReplyAbortCtl.signal : ctx.abortCtl.signal);
+            } });
+            const auto = entry === 'runAutoDiagnose' || entry === 'diagRetry';
+            const method = entry === 'diagRetry' ? 'runAutoDiagnose' : entry;
+            await h.ctx[method](h.ctx.getCtx(), s, 0, 'chat');
+            const fixed = [{ role: 'system', content: '校正' }, { role: 'user', content: '目标' }];
+            const diag = [{ role: 'system', content: '诊断' }, { role: 'user', content: 'diag.askDerive' }];
+            const depth = ['甲', '乙', '丙'].map((text) => [
+                { role: 'system', content: 'bld.condenseSect' },
+                { role: 'user', content: 'bld.condenseSectAsk:' + JSON.stringify({ full: '原稿', names: text, text }) },
+            ]);
+            depth.push([{ role: 'system', content: 'bld.condenseOps' }, { role: 'user', content: 'bld.condenseOpsAsk:{"draft":"合稿"}' }]);
+            const expected = entry === 'runCondenseDepth' ? depth : auto ? (entry === 'diagRetry'
+                ? [diag, [...diag, { role: 'user', content: '重试' }]] : [diag])
+                : entry.includes('Fix') ? [fixed] : [h.messages];
+            const tokens = entry === 'generateReply' ? (mode === 'direct' ? 4096 : 1024)
+                : entry.includes('Fix') ? 8192 : auto ? 4096 : 20000;
+            const useStream = entry === 'runCondenseDepth' || (!auto && entry !== 'runAutoFix' && stream);
+            checkCaptured(h, s, expected, tokens, useStream);
+            if (useStream && ['generateReply', 'runFixByTargets'].includes(entry)) assert.deepEqual(h.calls[0].updates, ['A', 'AB']);
+            if (useStream && ['runForge', 'runCondenseDepth'].includes(entry)) {
+                const texts = h.paints.filter((t) => t === 'A' || t === 'AB' || /：\n\n(?:A|AB)$/.test(t));
+                assert.equal(texts.length, h.calls.length * 2);
+                assert.ok(texts.every((t, i) => t.endsWith(i % 2 ? 'AB' : 'A')));
+            }
+            if (entry === 'runFixByTargets') assert.equal(h.rendered(), 'AB');
+            if (entry === 'runCondenseDepth') assert.equal(new Set(h.calls.map((c) => c.signal)).size, 1);
+            if (entry !== 'generateReply') assert.equal(h.ctx.soLastFinishReason, 'previous');
+            if (auto || entry === 'runAutoFix' || entry === 'runFixByTargets') assert.deepEqual(h.timers, Array(expected.length).fill(240000));
+            if (entry === 'runForge') assert.deepEqual(h.timers, stream ? [180000, 180000, 180000] : [600000]);
+            if (entry === 'runCondenseDepth') assert.deepEqual(h.timers, Array(13).fill(600000));
+        }
+    }
+});
+
+test('soCallModel 保留显式 null、无回调仍流式、token 原值及吞回调异常', async () => {
+    for (const mode of ['direct', 'profile']) for (const stream of [false, true]) for (const temperature of [false, true])
+        for (const choice of [undefined, null, false, true]) for (const callback of ['none', 'collect', 'throw']) {
+            const s = sendSettings(mode, stream, temperature), h = sendHarness(s), updates = [];
+            const signal = new AbortController().signal;
+            const opts = { signal, stream: choice, maxTokens: 512 };
+            if (callback !== 'none') opts.onDelta = (text) => { updates.push(text); if (callback === 'throw') throw new Error('callback'); };
+            assert.equal(await h.ctx.soCallModel(h.messages, opts), 'AB');
+            const useStream = choice === undefined ? stream : !!choice;
+            checkCaptured(h, s, [h.messages], 512, useStream);
+            assert.equal(h.calls[0].signal, signal);
+            assert.deepEqual(updates, useStream && callback !== 'none' ? ['A', 'AB'] : []);
+            assert.equal(h.ctx.soLastFinishReason, 'previous');
+        }
+});
+
+test('校正传输保留回调异常的拒绝语义', async () => {
+    for (const mode of ['direct', 'profile']) {
+        const s = sendSettings(mode, true, false), h = sendHarness(s), updates = [];
+        await assert.rejects(h.ctx.fixCallTransport(s, h.messages, new AbortController().signal, (text) => {
+            updates.push(text); throw new Error('callback');
+        }), /callback/);
+        assert.deepEqual(updates, ['A']);
+        assert.equal(h.calls.length, 1);
+    }
+});
+
+test('校正入口假计时器：240 秒超时、停止键、后台中断和异常均释放控制器', async () => {
+    for (const mode of ['direct', 'profile']) for (const entry of ['runFixByTargets', 'runAutoFix'])
+        for (const action of ['timeout', 'cancel', 'failure']) {
+            const s = sendSettings(mode, true, true);
+            const h = sendHarness(s, { hold: action !== 'failure', failure: action === 'failure' ? new Error('transport failed') : undefined });
+            const pending = h.ctx[entry](h.ctx.getCtx(), s, 0);
+            // 等待函数走到假传输；每轮有上界，漏发请求时直接失败。
+            for (let i = 0; i < 40 && !h.calls.length; i++) await Promise.resolve();
+            assert.equal(h.calls.length, 1);
+            const signal = h.calls[0].signal;
+            assert.deepEqual(h.timers, [240000]);
+            if (action === 'timeout') [...h.activeTimers.values()][0]();
+            if (action === 'cancel') h.ctx[entry === 'runAutoFix' ? 'cancelPostReply' : 'stopGeneration']();
+            if (entry === 'runAutoFix') await assert.rejects(pending, action === 'failure' ? /transport failed/ : { name: 'AbortError' });
+            else { await pending; assert.equal(h.ui.textContent, action === 'failure' ? '校正失败：transport failed' : '(已停止)'); }
+            assert.equal(signal.aborted, action !== 'failure');
+            assert.equal(h.activeTimers.size, 0);
+            assert.equal(h.ctx.abortCtl, null);
+            assert.equal(h.ctx.postReplyAbortCtl, null);
+            assert.equal(h.ctx.isGenerating, false);
+            if (entry === 'runAutoFix') assert.equal(h.ctx.postReplyCancelled, action === 'cancel');
+        }
+});
+
+test('条目序列化固定值：null、空 Set、乱序、字符串 uid；诊断另做数字过滤', () => {
+    const names = ['serializeBldEntrySel', 'serializeLbEntrySel', 'serializeDiagSel'].filter((name) => source.includes(`function ${name}(`));
+    if (/function serializeEntrySel\(/.test(source)) names.push('serializeEntrySel');
+    const ctx = { Set };
+    assert.ok(names.some((name) => name !== 'serializeDiagSel'), '应包含工坊 / 世界书的序列化函数');
+    vm.runInNewContext(functions(names), ctx);
+    const input = { all: null, empty: new Set(), mixed: new Set([8, '3', 1]), invalid: ['9'] };
+    for (const name of names.filter((n) => n !== 'serializeDiagSel')) {
+        assert.deepEqual(structuredClone(ctx[name](null)), {});
+        assert.deepEqual(structuredClone(ctx[name](input)), { empty: [], mixed: [1, '3', 8] });
+    }
+    assert.deepEqual(structuredClone(ctx.serializeDiagSel({ ...input, numbers: new Set(['5', 'bad', 2, Infinity]) })), {
+        empty: [], mixed: [1, 3, 8], numbers: [2, 5],
+    });
+});
+
 test('多行 data、中文跨字节、三种换行及 finish_reason', async () => {
     const wire = ': keepalive\n\ndata: {"choices":[\ndata: {"delta":{"content":"你好🌙"}}]}\n\n'
         + 'data: invalid-json\n\n' + content('！')

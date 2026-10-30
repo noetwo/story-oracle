@@ -2419,13 +2419,13 @@ let planFloatSlot = null;
 // Per-entry selection for a single targeted book: { [bookName]: Set<uid> }.
 // A book absent here (or null) means "send every entry" (the default).
 // 1.40.1：内存镜像，但每次改动都镜像进 lbEntrySel 设置、跨重载保留
-// （见 serializeLbEntrySel / persistLbEntrySel；水合见 populateLorebookEntries 顶部）。
+// （见 serializeEntrySel / persistLbEntrySel；水合见 populateLorebookEntries 顶部）。
 let lbEntryFilter = {};
 // 本会话是否已把 lbEntrySel 设置水合进 lbEntryFilter（每会话一次，同 bldSelHydrated）。
 let lbSelHydrated = false;
 // 角色工坊选条目器的每本书条目选择（与 lbEntryFilter 同形同义）：{ [书名]: Set<uid> | null }。
 // 书名缺席（或 null）= 发送整本；Set = 只发送这些 uid。内存镜像，随选书重建、剪除失效 uid。
-// T12：现随每次改动镜像进 bldEntrySel 设置、跨重载保留（见 serializeBldEntrySel / persistBldEntrySel）。
+// T12：现随每次改动镜像进 bldEntrySel 设置、跨重载保留（见 serializeEntrySel / persistBldEntrySel）。
 let bldEntryFilter = {};
 // 本会话是否已把 bldEntrySel 设置水合进 bldEntryFilter（每会话一次，见 populateBuilderBooks 顶部）。
 let bldSelHydrated = false;
@@ -7123,18 +7123,6 @@ function fixHubFieldMessage(field, code) {
 function fixHubBuildShareBlock(value) {
     const body = JSON.stringify(value, null, 2).replace(/`/g, '\\u0060').replace(/</g, '\\u003c');
     return `${FIX_HUB_MARKER}\n\`\`\`json\n${body}\n\`\`\``;
-}
-
-// 只认【第一个】标记后紧跟的 ```json 围栏（前后夹着聊天闲话也行）；坏 JSON / 非对象 → null。
-function fixHubParseShareBlock(text) {
-    const s = String(text == null ? '' : text);
-    const at = s.indexOf(FIX_HUB_MARKER);
-    if (at < 0) return null;
-    const m = s.slice(at + FIX_HUB_MARKER.length).match(/^\s*```json\n([\s\S]*?)\n```/);
-    if (!m) return null;
-    let v;
-    try { v = JSON.parse(m[1]); } catch (e) { return null; }
-    return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
 }
 
 // 单个广场条目 → HubEntry | null（坏条目整条跳过，绝不半条渲染）。校验复用提交规则，标签只校形不校名单。
@@ -20165,10 +20153,10 @@ function refreshBldEntriesSummary() {
     summary.appendChild(sizeEl);
 }
 
-// 纯函数：把内存的 bldEntryFilter（书名 -> Set<uid> | null）序列化成可持久化的普通对象
+// 纯函数：把工坊 / 世界书条目过滤器（书名 -> Set<uid> | null）序列化成可持久化的普通对象
 // { [书名]: number[] }。只有 Set 值成为键（uid 升序）；null / 缺席跳过（= 发送整本）。
-// 空 Set 保留成 []（＝显式一条不发）。可单测（builder-helpers.test.mjs）。
-function serializeBldEntrySel(filter) {
+// 空 Set 保留成 []（＝显式一条不发）。见 tests/regressions.test.mjs。
+function serializeEntrySel(filter) {
     const out = {};
     for (const [book, sel] of Object.entries(filter || {})) {
         if (sel instanceof Set) out[book] = [...sel].sort((a, b) => a - b);
@@ -20178,7 +20166,7 @@ function serializeBldEntrySel(filter) {
 
 // 把当前 bldEntryFilter 落进设置（跨重载保留选条目）。每个改动选择的地方都要调。
 function persistBldEntrySel() {
-    getSettings().bldEntrySel = serializeBldEntrySel(bldEntryFilter);
+    getSettings().bldEntrySel = serializeEntrySel(bldEntryFilter);
     save();
 }
 
@@ -20502,20 +20490,10 @@ function lbShownBookTotals() {
     return totals;
 }
 
-/* 选条目持久化（1.40.1）：Set → 排序过的 uid 数组；null / 缺席一律【不落键】＝ 发送整本。
- * 纯函数、可单测。与工坊的 serializeBldEntrySel 同形——两边语义必须保持一致。 */
-function serializeLbEntrySel(filter) {
-    const out = {};
-    for (const [book, sel] of Object.entries(filter || {})) {
-        if (sel instanceof Set) out[book] = [...sel].sort((a, b) => a - b);
-    }
-    return out;
-}
-
 // 把当前 lbEntryFilter 落进设置。挂在 refreshLbEntriesSummary 末尾＝所有改选路径的唯一咽喉，
 // 且落的是【归一之后】的状态（全选已塌回 null＝不落键，于是日后新增的条目会自动被包含进来）。
 function persistLbEntrySel() {
-    getSettings().lbEntrySel = serializeLbEntrySel(lbEntryFilter);
+    getSettings().lbEntrySel = serializeEntrySel(lbEntryFilter);
     save();
 }
 
@@ -23916,8 +23894,7 @@ function subst(ctx, text) {
     try { return ctx.substituteParams(String(text || '')); } catch (e) { return String(text || ''); }
 }
 
-// Push a message, coalescing into the previous one if roles match — keeps the
-// array clean without changing meaning.
+// 追加非空消息；保留文本原样，不合并相邻的同角色消息。
 function pushMsg(out, role, content) {
     const c = (content == null) ? '' : String(content);
     if (!c.trim()) return;
@@ -24013,6 +23990,21 @@ function buildPresetMessages(s) {
     return out.length ? out : [{ role: 'system', content: subst(ctx, P('chat.presetEmpty', null, s)) }, ...convoForPrompt()];
 }
 
+// 五种工具模式只放一次 chatHistory；普通聊天仍逐个展开，不走这里。
+function walkPresetItems(items, ctx, out, place, onMarker) {
+    let placed = false;
+    for (const it of items) {
+        if (it.kind === 'marker') {
+            if (it.identifier === 'chatHistory') {
+                if (!placed) { place(); placed = true; }
+            } else if (onMarker) onMarker(it.identifier);
+        } else {
+            pushMsg(out, it.role || 'system', subst(ctx, it.content));
+        }
+    }
+    if (!placed) place();
+}
+
 /* ------------------------------------------------------------------ *
  * Lorebook mode THROUGH a curated preset (opt-in: s.lorebookUsePreset).
  *
@@ -24030,23 +24022,11 @@ function buildLorebookPresetMessages(s) {
     const out = [];
 
     const loreBlock = buildLorebookPrompt(ctx, s);  // directive (+ optional transcript)；书正文已移出、见下方尾部快照
-    let placed = false;
     const placeLore = () => {
-        if (placed) return;
         pushMsg(out, 'system', loreBlock);
         for (const m of convoForPrompt()) pushMsg(out, m.role, m.content);
-        placed = true;
     };
-
-    for (const it of items) {
-        if (it.kind === 'marker') {
-            if (it.identifier === 'chatHistory') placeLore();
-            // every other marker is skipped in lore mode
-        } else {
-            pushMsg(out, it.role || 'system', subst(ctx, it.content));
-        }
-    }
-    placeLore(); // no chatHistory marker in the curation -> append at the end
+    walkPresetItems(items, ctx, out, placeLore);
 
     // F5：书正文快照钉在【全部内容之后】的末尾（与裸路径同规则，唯一权威、只出现这一次）。
     out.push(lbSnapshotMsg());
@@ -24068,26 +24048,12 @@ function buildFixPresetMessages(s, directive) {
     const items = (snap && snap.items) || [];
     const out = [];
 
-    let placed = false;
     const placeFix = () => {
-        if (placed) return;
         pushMsg(out, 'system', buildFixPrompt(ctx, s));
         if (directive != null) pushMsg(out, 'user', directive);
         else for (const m of convoForPrompt()) pushMsg(out, m.role, m.content);
-        placed = true;
     };
-
-    for (const it of items) {
-        if (it.kind === 'marker') {
-            // chatHistory 槽 = 校正调用（slim 信封）；其余 RP 内容标记照预设位置展开（卡 / 世界书 / 场景 / 示例 / 人格），
-            // 让校正模型看到角色 / 世界设定（改对话 / 知不知道某事都用得上），且只出现一次（信封已 slim）。
-            if (it.identifier === 'chatHistory') placeFix();
-            else expandMarker(out, it.identifier, ctx, s);
-        } else {
-            pushMsg(out, it.role || 'system', subst(ctx, it.content));
-        }
-    }
-    placeFix(); // 预设里没有 chatHistory marker -> 追加到末尾
+    walkPresetItems(items, ctx, out, placeFix, (identifier) => expandMarker(out, identifier, ctx, s));
 
     return out.length ? out : (directive != null
         ? [{ role: 'system', content: buildFixPrompt(ctx, s) }, { role: 'user', content: directive }]
@@ -24117,23 +24083,11 @@ function buildAdvisorPresetMessages(s, over) {
 
     const advBlock = over ? over.block : buildAdvisorPrompt(ctx, s);  // directive + plan + card + WI + full transcript
     const tail = over ? over.tail : convoForPrompt();
-    let placed = false;
     const placeAdv = () => {
-        if (placed) return;
         pushMsg(out, 'system', advBlock);
         for (const m of tail) pushMsg(out, m.role, m.content);
-        placed = true;
     };
-
-    for (const it of items) {
-        if (it.kind === 'marker') {
-            if (it.identifier === 'chatHistory') placeAdv();
-            // every other marker is skipped in advisor mode
-        } else {
-            pushMsg(out, it.role || 'system', subst(ctx, it.content));
-        }
-    }
-    placeAdv(); // no chatHistory marker in the curation -> append at the end
+    walkPresetItems(items, ctx, out, placeAdv);
 
     return out.length ? out : [{ role: 'system', content: advBlock }, ...tail];
 }
@@ -24160,24 +24114,12 @@ function buildDiagnosePresetMessages(s, systemPrompt, directive) {
     const items = (snap && snap.items) || [];
     const out = [];
 
-    let placed = false;
     const placeDiag = () => {
-        if (placed) return;
         pushMsg(out, 'system', systemPrompt);
         if (directive != null) pushMsg(out, 'user', directive);
         else for (const m of convoForPrompt()) pushMsg(out, m.role, m.content);
-        placed = true;
     };
-
-    for (const it of items) {
-        if (it.kind === 'marker') {
-            if (it.identifier === 'chatHistory') placeDiag();
-            // 其余标记在诊断模式一概跳过（诊断信封自带这些材料）
-        } else {
-            pushMsg(out, it.role || 'system', subst(ctx, it.content));
-        }
-    }
-    placeDiag(); // 预设里没有 chatHistory marker -> 追加到末尾
+    walkPresetItems(items, ctx, out, placeDiag);
 
     return out.length ? out : (directive != null
         ? [{ role: 'system', content: systemPrompt }, { role: 'user', content: directive }]
@@ -24200,23 +24142,11 @@ function buildBuilderPresetMessages(s) {
     const out = [];
 
     const bldBlock = buildBuilderPrompt(ctx, s);  // 工序指令 + 卡 + WI + 变量 + 概要 + 对话记录
-    let placed = false;
     const placeBld = () => {
-        if (placed) return;
         pushMsg(out, 'system', bldBlock);
         for (const m of convoForPrompt()) pushMsg(out, m.role, m.content);
-        placed = true;
     };
-
-    for (const it of items) {
-        if (it.kind === 'marker') {
-            if (it.identifier === 'chatHistory') placeBld();
-            // every other marker is skipped in builder mode
-        } else {
-            pushMsg(out, it.role || 'system', subst(ctx, it.content));
-        }
-    }
-    placeBld(); // no chatHistory marker in the curation -> append at the end
+    walkPresetItems(items, ctx, out, placeBld);
 
     return out.length ? out : [{ role: 'system', content: bldBlock }, ...convoForPrompt()];
 }
@@ -24441,12 +24371,8 @@ async function generateReply() {
 
         clearTyping();
         if (!finalText) {
-            // The code cannot tell WHY the body came back empty. It only sees an
-            // empty string; no finish_reason / usage is read on this path. So name the
-            // three causes users actually hit instead of asserting one: budget spent
-            // before any visible text (common with reasoning models and long Diagnose
-            // audits), a Gemini safety-filter block, and PvP-style free-aggregator rate
-            // limiting. .so-content is white-space:pre-wrap, so the newlines render.
+            // 空回复先列常见原因；下方再用直连返回的 finish_reason 补充预算耗尽提示。
+            // 此处不读取 usage，不能只凭空正文断言原因。换行按 .so-content 的 pre-wrap 显示。
             let emptyNote = diagnoseMode
                 ? '(空回复) — 审计可能把 token 预算用光了（推理也算在内）。调大设置里的「最大 token 数」，或问得更聚焦一点（比如只审某一类变量）。'
                 : '(空回复) — 端点收下了请求，但没有返回正文。常见三因：\n' +
@@ -26051,8 +25977,7 @@ function updateFixSelGo(card) {
 }
 
 // 校正调用共用传输；回调接收累计全文，自动任务不传回调时保持非流式。
-async function fixCallTransport(s, messages, signal, onCum) {
-    const effMaxTokens = fixEffMaxTokens(s);
+async function fixCallTransport(s, messages, signal, onCum, effMaxTokens = fixEffMaxTokens(s)) {
     if (s.mode === 'direct') {
         const url = resolveEndpointUrl(s);
         const body = { model: s.model, messages, max_tokens: effMaxTokens };
@@ -26488,28 +26413,10 @@ async function runFixByTargets() {
     const timer = setTimeout(() => { try { abortCtl?.abort(); } catch (e) { /* ignore */ } }, POST_REPLY_CALL_TIMEOUT_MS);
     try {
         const effMaxTokens = fixEffMaxTokens(s);   // Tier 0 ③：可被 fixMaxTokens 顶高（长楼层）
-        let finalText = '';
-        if (s.mode === 'direct') {
-            const url = resolveEndpointUrl(s);
-            const body = { model: s.model, messages, max_tokens: effMaxTokens };
-            if (s.sendTemperature) body.temperature = s.temperature;
-            if (s.stream) {
-                contentEl.classList.add('so-streaming');
-                finalText = await streamDirect(url, s.apiKey, body, abortCtl.signal, (delta) => { clearTyping(); contentEl.textContent += delta; if (soFollowStream) scrollToBottom(); });
-                contentEl.classList.remove('so-streaming');
-            } else {
-                finalText = await callDirect(url, s.apiKey, body, abortCtl.signal);
-            }
-        } else {
-            const override = s.sendTemperature ? { temperature: s.temperature } : {};
-            if (s.stream) {
-                contentEl.classList.add('so-streaming');
-                finalText = await callProfileStream(s.profileId, messages, effMaxTokens, override, abortCtl.signal, (full) => { clearTyping(); contentEl.textContent = full; if (soFollowStream) scrollToBottom(); });
-                contentEl.classList.remove('so-streaming');
-            } else {
-                finalText = await callProfile(s.profileId, messages, effMaxTokens, override, abortCtl.signal);
-            }
-        }
+        const onCum = s.stream ? (full) => { clearTyping(); contentEl.textContent = full; if (soFollowStream) scrollToBottom(); } : undefined;
+        if (s.stream) contentEl.classList.add('so-streaming');
+        const finalText = await fixCallTransport(s, messages, abortCtl.signal, onCum, effMaxTokens);
+        if (s.stream) contentEl.classList.remove('so-streaming');
         clearTyping();
         if (renderFixCard(assistantEl, contentEl, aEntry, finalText) !== 'ok') {
             contentEl.textContent = finalText || '（空回复）';
@@ -27358,14 +27265,7 @@ async function runAutoFix(ctx, s, targetId, compatSession) {
     const genToast = showAutoFixGenerating();
     let finalText = '';
     try {
-        if (s.mode === 'direct') {
-            const body = { model: s.model, messages, max_tokens: effMaxTokens };
-            if (s.sendTemperature) body.temperature = s.temperature;
-            finalText = await callDirect(resolveEndpointUrl(s), s.apiKey, body, ctl.signal);
-        } else {
-            const override = s.sendTemperature ? { temperature: s.temperature } : {};
-            finalText = await callProfile(s.profileId, messages, effMaxTokens, override, ctl.signal);
-        }
+        finalText = await fixCallTransport(s, messages, ctl.signal, undefined, effMaxTokens);
     } finally {
         ctl.end();
         dismissToast(genToast);
